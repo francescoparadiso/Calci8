@@ -9,12 +9,12 @@ class FootballBackground {
         this.players = [];
         this.ball = null;
         this.passTimer = 0;
-        this.passInterval = 70;
+        this.passInterval = 120;
         this.targetPlayerIndex = 0;
-        this.opacity = 2;
+        this.opacity = 0.25;
         this.playerSize = 4;
         this.ballSize = 6;
-        this.speed = 1.5;
+        this.speed = 0.8;
 
         this.resize();
         window.addEventListener('resize', () => this.resize());
@@ -250,7 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /* ============================================================
-   RESTO DELL'APP (con grafici corretti)
+   APP PRINCIPALE (con tutte le migliorie)
    ============================================================ */
 
 const STORAGE_KEY_PLAYERS = "campionato_players";
@@ -273,6 +273,38 @@ const TIPO_LIMITI = {
 let players = loadPlayers();
 let matches = loadMatches();
 let charts = {};
+let sortColumn = 'punti';
+let sortDirection = 'desc';
+let editMatchId = null;
+
+// ---- TOAST ----
+function showToast(message, type = 'success', duration = 3000) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+    toast.innerHTML = `<span class="toast-icon">${icons[type] || 'ℹ️'}</span><span>${message}</span>`;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => toast.remove(), 300);
+    }, duration);
+}
+
+// ---- AVATAR COLORI ----
+function getPlayerColor(id) {
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+        hash = id.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const hue = Math.abs(hash) % 360;
+    return `hsl(${hue}, 70%, 50%)`;
+}
+
+function getInitials(name) {
+    return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+}
 
 // ---- DEMO DATA ----
 const DEMO_PLAYERS = [
@@ -357,6 +389,19 @@ function nomeGiocatore(id) {
     return p ? p.name : "(eliminato)";
 }
 
+// ---- FUNZIONE FORMAT DATA (ora definita PRIMA di renderListaPartite) ----
+function formatData(iso) {
+    if (!iso) return 'Data non valida';
+    const d = new Date(iso + "T00:00:00");
+    return d.toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function formatDataBreve(iso) {
+    if (!iso) return '';
+    const d = new Date(iso + "T00:00:00");
+    return d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" });
+}
+
 // ---- TAB NAV ----
 document.querySelectorAll(".tab-btn").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -370,8 +415,7 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
         if (btn.dataset.tab === "partite") renderListaPartite();
         if (btn.dataset.tab === "giocatori") renderTabellaGiocatori();
         if (btn.dataset.tab === "statistiche") {
-            // ATTESA PIÙ LUNGA + RESIZE FORZATO
-            setTimeout(() => renderTuttiGrafici(), 500);
+            setTimeout(() => renderTuttiGrafici(), 400);
         }
     });
 });
@@ -386,10 +430,13 @@ document.getElementById("form-giocatore").addEventListener("submit", e => {
     const esistente = players.find(p => p.name.toLowerCase() === nome.toLowerCase());
     if (esistente) {
         esistente.overall = overall;
+        savePlayers();
+        showToast(`Giocatore ${nome} aggiornato`, 'info');
     } else {
         players.push({ id: uid(), name: nome, overall });
+        savePlayers();
+        showToast(`Giocatore ${nome} aggiunto!`, 'success');
     }
-    savePlayers();
     document.getElementById("form-giocatore").reset();
     document.getElementById("g-overall").value = 70;
     renderTabellaGiocatori();
@@ -405,10 +452,15 @@ function renderTabellaGiocatori() {
     }
     const sorted = [...players].sort((a, b) => b.overall - a.overall);
     sorted.forEach(p => {
+        const color = getPlayerColor(p.id);
+        const initials = getInitials(p.name);
         const tr = document.createElement("tr");
         tr.dataset.id = p.id;
         tr.innerHTML = `
-          <td class="nome-cell"><span class="nome-view">${escapeHtml(p.name)}</span></td>
+          <td class="nome-cell">
+            <span class="player-avatar player-avatar-sm" style="background:${color};">${initials}</span>
+            <span class="nome-view">${escapeHtml(p.name)}</span>
+          </td>
           <td><span class="ovr-view badge-ovr">${p.overall}</span></td>
           <td style="text-align:right;">
             <button class="btn btn-secondary btn-sm btn-edit" data-id="${p.id}">✏️ Modifica</button>
@@ -431,6 +483,7 @@ function avviaModificaGiocatore(id) {
     const nomeView = tr.querySelector('.nome-view');
     const ovrView = tr.querySelector('.ovr-view');
     const azioniTd = tr.querySelector('td:last-child');
+    const avatar = tr.querySelector('.player-avatar');
 
     const nomeInput = document.createElement('input');
     nomeInput.type = 'text'; nomeInput.value = p.name; nomeInput.className = 'edit-input nome-input';
@@ -439,6 +492,7 @@ function avviaModificaGiocatore(id) {
 
     nomeView.replaceWith(nomeInput);
     ovrView.replaceWith(ovrInput);
+    if (avatar) avatar.remove();
 
     const btnSalva = document.createElement('button');
     btnSalva.className = 'btn btn-sm btn-save'; btnSalva.textContent = '💾 Salva';
@@ -452,9 +506,12 @@ function avviaModificaGiocatore(id) {
     btnSalva.addEventListener('click', () => {
         const nuovoNome = nomeInput.value.trim();
         const nuovoOvr = parseInt(ovrInput.value, 10);
-        if (!nuovoNome || isNaN(nuovoOvr)) { alert('Dati non validi.'); return; }
+        if (!nuovoNome || isNaN(nuovoOvr)) { showToast('Dati non validi.', 'error'); return; }
         p.name = nuovoNome; p.overall = nuovoOvr;
-        savePlayers(); renderTabellaGiocatori(); aggiornaStats();
+        savePlayers();
+        renderTabellaGiocatori();
+        aggiornaStats();
+        showToast(`Giocatore aggiornato`, 'info');
     });
     btnAnnulla.addEventListener('click', () => renderTabellaGiocatori());
 }
@@ -462,7 +519,10 @@ function avviaModificaGiocatore(id) {
 window.eliminaGiocatore = function(id) {
     if (!confirm("Eliminare questo giocatore? Le partite rimarranno invariate.")) return;
     players = players.filter(p => p.id !== id);
-    savePlayers(); renderTabellaGiocatori(); aggiornaStats();
+    savePlayers();
+    renderTabellaGiocatori();
+    aggiornaStats();
+    showToast('Giocatore eliminato', 'info');
 };
 
 function escapeHtml(str) {
@@ -508,13 +568,19 @@ function renderPlayerPickers() {
 
     const sorted = [...players].sort((a, b) => a.name.localeCompare(b.name));
     sorted.forEach(p => {
+        const color = getPlayerColor(p.id);
+        const initials = getInitials(p.name);
         const chipA = document.createElement("span");
-        chipA.className = "player-chip"; chipA.textContent = p.name; chipA.dataset.id = p.id;
+        chipA.className = "player-chip";
+        chipA.innerHTML = `<span class="player-avatar player-avatar-sm" style="background:${color}; width:20px; height:20px; line-height:20px; font-size:0.5rem; margin-right:4px;">${initials}</span>${p.name}`;
+        chipA.dataset.id = p.id;
         chipA.addEventListener("click", () => toggleSelezione(p.id, "a"));
         pickerA.appendChild(chipA);
 
         const chipB = document.createElement("span");
-        chipB.className = "player-chip"; chipB.textContent = p.name; chipB.dataset.id = p.id;
+        chipB.className = "player-chip";
+        chipB.innerHTML = `<span class="player-avatar player-avatar-sm" style="background:${color}; width:20px; height:20px; line-height:20px; font-size:0.5rem; margin-right:4px;">${initials}</span>${p.name}`;
+        chipB.dataset.id = p.id;
         chipB.addEventListener("click", () => toggleSelezione(p.id, "b"));
         pickerB.appendChild(chipB);
     });
@@ -624,6 +690,7 @@ function aggiungiRigaMarcatore(squadra) {
 
     const inputGol = document.createElement("input");
     inputGol.type = "number";
+    inputGol.className = "input-gol";
     inputGol.min = "1";
     inputGol.value = "1";
     inputGol.placeholder = "Gol";
@@ -648,78 +715,144 @@ document.getElementById("form-partita").addEventListener("submit", e => {
     const scoreA = parseInt(document.getElementById("p-score-a").value, 10) || 0;
     const scoreB = parseInt(document.getElementById("p-score-b").value, 10) || 0;
 
-    if (!data) { alert("Inserisci la data."); return; }
+    if (!data) { showToast('Inserisci la data.', 'error'); return; }
     if (selezioneA.size === 0 || selezioneB.size === 0) {
-        alert("Seleziona giocatori per entrambe le squadre.");
+        showToast('Seleziona giocatori per entrambe le squadre.', 'error');
         return;
     }
 
     const limite = getLimite();
     if (selezioneA.size > limite || selezioneB.size > limite) {
-        alert(`Numero massimo di giocatori per questo tipo di partita: ${limite}.`);
+        showToast(`Numero massimo di giocatori per questo tipo di partita: ${limite}.`, 'error');
         return;
     }
 
     const scorers = [];
     document.querySelectorAll('#marcatori-wrap-a .marcatore-row').forEach(row => {
         const sel = row.querySelector(".sel-giocatore");
-        const gol = parseInt(row.querySelector(".input-gol").value, 10) || 0;
-        if (sel.value && gol > 0) {
+        const inputGol = row.querySelector(".input-gol");
+        // CONTROLLO SICUREZZA: se manca l'input, salta
+        if (!inputGol) return;
+        const gol = parseInt(inputGol.value, 10) || 0;
+        if (sel && sel.value && gol > 0) {
             scorers.push({ playerId: sel.value, goals: gol, squad: 'A' });
         }
     });
     document.querySelectorAll('#marcatori-wrap-b .marcatore-row').forEach(row => {
         const sel = row.querySelector(".sel-giocatore");
-        const gol = parseInt(row.querySelector(".input-gol").value, 10) || 0;
-        if (sel.value && gol > 0) {
+        const inputGol = row.querySelector(".input-gol");
+        if (!inputGol) return;
+        const gol = parseInt(inputGol.value, 10) || 0;
+        if (sel && sel.value && gol > 0) {
             scorers.push({ playerId: sel.value, goals: gol, squad: 'B' });
         }
     });
 
-    matches.push({
-        id: uid(),
-        date: data,
-        type: tipo,
-        scoreA, scoreB,
-        teamA: [...selezioneA],
-        teamB: [...selezioneB],
-        scorers
-    });
-    saveMatches();
+    if (editMatchId) {
+        // Modifica partita esistente
+        const idx = matches.findIndex(m => m.id === editMatchId);
+        if (idx !== -1) {
+            matches[idx] = {
+                id: editMatchId,
+                date: data,
+                type: tipo,
+                scoreA, scoreB,
+                teamA: [...selezioneA],
+                teamB: [...selezioneB],
+                scorers
+            };
+            saveMatches();
+            showToast('✅ Partita aggiornata!', 'success');
+            editMatchId = null;
+            document.getElementById('edit-match-id').value = '';
+            document.getElementById('btn-salva-partita').textContent = '💾 Salva Partita';
+            document.getElementById('btn-annulla-modifica').style.display = 'none';
+        }
+    } else {
+        matches.push({
+            id: uid(),
+            date: data,
+            type: tipo,
+            scoreA, scoreB,
+            teamA: [...selezioneA],
+            teamB: [...selezioneB],
+            scorers
+        });
+        saveMatches();
+        showToast('✅ Partita salvata!', 'success');
+    }
 
-    alert("✅ Partita salvata!");
     document.getElementById("form-partita").reset();
+    document.getElementById("p-data").valueAsDate = new Date();
     document.getElementById('marcatori-wrap-a').innerHTML = '';
     document.getElementById('marcatori-wrap-b').innerHTML = '';
     renderPlayerPickers();
     aggiornaStats();
+    // Ricarica la lista partite se la tab è attiva
+    if (document.getElementById('partite').classList.contains('active')) {
+        renderListaPartite();
+    }
+});
+
+// ---- ANNULLA MODIFICA ----
+document.getElementById('btn-annulla-modifica').addEventListener('click', () => {
+    editMatchId = null;
+    document.getElementById('edit-match-id').value = '';
+    document.getElementById('btn-salva-partita').textContent = '💾 Salva Partita';
+    document.getElementById('btn-annulla-modifica').style.display = 'none';
+    document.getElementById('form-partita').reset();
+    document.getElementById("p-data").valueAsDate = new Date();
+    document.getElementById('marcatori-wrap-a').innerHTML = '';
+    document.getElementById('marcatori-wrap-b').innerHTML = '';
+    renderPlayerPickers();
+    showToast('Modifica annullata', 'info');
+});
+
+// ---- FILTRO PER TIPO ----
+document.getElementById('filtro-tipo').addEventListener('change', () => {
+    renderClassifica();
 });
 
 // ---- CLASSIFICA ----
-function calcolaStatistiche() {
+function calcolaStatistiche(filtroTipo = null) {
     const stats = {};
     players.forEach(p => {
         stats[p.id] = {
             id: p.id, name: p.name, overall: p.overall,
-            pg: 0, v: 0, p: 0, s: 0, gol: 0, punti: 0
+            pg: 0, v: 0, p: 0, s: 0, gol: 0, punti: 0,
+            assists: 0, cleanSheets: 0
         };
     });
 
-    matches.forEach(m => {
+    const partiteFiltrate = filtroTipo && filtroTipo !== 'all' 
+        ? matches.filter(m => m.type === filtroTipo)
+        : matches;
+
+    partiteFiltrate.forEach(m => {
         const vincitoreA = m.scoreA > m.scoreB;
         const vincitoreB = m.scoreB > m.scoreA;
         const pareggio = m.scoreA === m.scoreB;
 
+        // Clean sheet
+        if (vincitoreA && m.scoreB === 0) {
+            m.teamA.forEach(pid => { if (stats[pid]) stats[pid].cleanSheets++; });
+        }
+        if (vincitoreB && m.scoreA === 0) {
+            m.teamB.forEach(pid => { if (stats[pid]) stats[pid].cleanSheets++; });
+        }
+
         m.teamA.forEach(pid => {
             if (!stats[pid]) return;
-            stats[pid].pg++; stats[pid].punti += 1;
+            stats[pid].pg++;
+            stats[pid].punti += 1;
             if (vincitoreA) { stats[pid].v++; stats[pid].punti += 3; }
             else if (pareggio) { stats[pid].p++; }
             else { stats[pid].s++; }
         });
         m.teamB.forEach(pid => {
             if (!stats[pid]) return;
-            stats[pid].pg++; stats[pid].punti += 1;
+            stats[pid].pg++;
+            stats[pid].punti += 1;
             if (vincitoreB) { stats[pid].v++; stats[pid].punti += 3; }
             else if (pareggio) { stats[pid].p++; }
             else { stats[pid].s++; }
@@ -730,13 +863,26 @@ function calcolaStatistiche() {
         });
     });
 
-    return Object.values(stats).sort((a, b) => b.punti - a.punti || b.gol - a.gol);
+    return Object.values(stats);
 }
 
 function renderClassifica() {
+    const filtro = document.getElementById('filtro-tipo').value;
+    const stats = calcolaStatistiche(filtro);
+
+    // Ordina
+    stats.sort((a, b) => {
+        let valA = a[sortColumn] || 0;
+        let valB = b[sortColumn] || 0;
+        if (typeof valA === 'string') valA = valA.toLowerCase();
+        if (typeof valB === 'string') valB = valB.toLowerCase();
+        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+    });
+
     const tbody = document.querySelector("#tabella-classifica tbody");
     tbody.innerHTML = "";
-    const stats = calcolaStatistiche();
     if (stats.length === 0) {
         tbody.innerHTML = `<tr><td colspan="9" class="empty-msg">Nessun dato disponibile.</td></tr>`;
         return;
@@ -744,9 +890,14 @@ function renderClassifica() {
     stats.forEach((s, i) => {
         const tr = document.createElement("tr");
         const posClass = i === 0 ? "pos-1" : i === 1 ? "pos-2" : i === 2 ? "pos-3" : "";
+        const color = getPlayerColor(s.id);
+        const initials = getInitials(s.name);
         tr.innerHTML = `
           <td class="${posClass}">${i + 1}</td>
-          <td class="nome-cell">${escapeHtml(s.name)}</td>
+          <td class="nome-cell" data-player-id="${s.id}" style="cursor:pointer;">
+            <span class="player-avatar player-avatar-sm" style="background:${color};">${initials}</span>
+            ${escapeHtml(s.name)}
+          </td>
           <td><span class="badge-ovr">${s.overall}</span></td>
           <td>${s.pg}</td><td>${s.v}</td><td>${s.p}</td><td>${s.s}</td>
           <td>${s.gol}</td>
@@ -754,8 +905,17 @@ function renderClassifica() {
         `;
         tbody.appendChild(tr);
     });
+
+    // Click su riga per statistiche individuali
+    document.querySelectorAll('#tabella-classifica tbody td.nome-cell').forEach(td => {
+        td.addEventListener('click', function() {
+            const id = this.dataset.playerId;
+            apriModalGiocatore(id);
+        });
+    });
 }
 
+// ---- STATS ROW ----
 function aggiornaStats() {
     document.getElementById("stat-giocatori").textContent = players.length;
     document.getElementById("stat-partite").textContent = matches.length;
@@ -763,7 +923,7 @@ function aggiornaStats() {
     matches.forEach(m => (m.scorers || []).forEach(sc => golTotali += sc.goals));
     document.getElementById("stat-gol").textContent = golTotali;
 
-    const stats = calcolaStatistiche();
+    const stats = calcolaStatistiche('all');
     if (stats.length > 0) {
         const top = stats.reduce((a, b) => a.gol > b.gol ? a : b);
         document.getElementById("stat-capocannoniere").textContent = top.gol > 0 ? top.name : "—";
@@ -772,11 +932,114 @@ function aggiornaStats() {
     }
 }
 
-// ---- LISTA PARTITE ----
+// ---- MODALE STATISTICHE GIOCATORE ----
+let modalChart = null;
+
+function apriModalGiocatore(id) {
+    const p = players.find(pl => pl.id === id);
+    if (!p) return;
+    const stats = calcolaStatistiche('all').find(s => s.id === id);
+    if (!stats) return;
+
+    const modal = document.getElementById('player-modal');
+    document.getElementById('modal-player-name').innerHTML = `
+        <span class="player-avatar" style="background:${getPlayerColor(id)};">${getInitials(p.name)}</span>
+        ${escapeHtml(p.name)}
+    `;
+
+    const container = document.getElementById('modal-player-stats');
+    container.innerHTML = `
+        <div class="stat-item"><span class="stat-label">Partite giocate</span><span class="stat-value">${stats.pg}</span></div>
+        <div class="stat-item"><span class="stat-label">Vittorie</span><span class="stat-value">${stats.v}</span></div>
+        <div class="stat-item"><span class="stat-label">Pareggi</span><span class="stat-value">${stats.p}</span></div>
+        <div class="stat-item"><span class="stat-label">Sconfitte</span><span class="stat-value">${stats.s}</span></div>
+        <div class="stat-item"><span class="stat-label">Gol segnati</span><span class="stat-value">${stats.gol}</span></div>
+        <div class="stat-item"><span class="stat-label">Punti totali</span><span class="stat-value">${stats.punti}</span></div>
+        <div class="stat-item"><span class="stat-label">Media gol a partita</span><span class="stat-value">${stats.pg > 0 ? (stats.gol / stats.pg).toFixed(2) : '0.00'}</span></div>
+        <div class="stat-item"><span class="stat-label">Clean sheet</span><span class="stat-value">${stats.cleanSheets || 0}</span></div>
+    `;
+
+    // Grafico andamento punti per questo giocatore
+    if (modalChart) { modalChart.destroy(); modalChart = null; }
+    const ctx = document.getElementById('modal-player-chart');
+    if (ctx) {
+        const partiteGiocate = matches.filter(m => m.teamA.includes(id) || m.teamB.includes(id))
+            .sort((a, b) => new Date(a.date) - new Date(b.date));
+        if (partiteGiocate.length > 0) {
+            const labels = partiteGiocate.map(m => formatDataBreve(m.date));
+            const puntiCumulativi = [];
+            let cum = 0;
+            partiteGiocate.forEach(m => {
+                const inA = m.teamA.includes(id);
+                const inB = m.teamB.includes(id);
+                const vincitoreA = m.scoreA > m.scoreB;
+                const vincitoreB = m.scoreB > m.scoreA;
+                const pareggio = m.scoreA === m.scoreB;
+                if (inA || inB) {
+                    cum += 1;
+                    if ((inA && vincitoreA) || (inB && vincitoreB)) cum += 3;
+                }
+                puntiCumulativi.push(cum);
+            });
+            modalChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Punti cumulativi',
+                        data: puntiCumulativi,
+                        borderColor: getPlayerColor(id),
+                        backgroundColor: getPlayerColor(id) + '33',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#94a3b8', font: { size: 9 } }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#64748b', font: { size: 8 } },
+                            grid: { color: 'rgba(255,255,255,0.04)' }
+                        },
+                        y: {
+                            ticks: { color: '#64748b', font: { size: 8 } },
+                            grid: { color: 'rgba(255,255,255,0.04)' },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    modal.classList.add('active');
+}
+
+document.querySelector('.modal-close').addEventListener('click', () => {
+    document.getElementById('player-modal').classList.remove('active');
+    if (modalChart) { modalChart.destroy(); modalChart = null; }
+});
+window.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('player-modal')) {
+        document.getElementById('player-modal').classList.remove('active');
+        if (modalChart) { modalChart.destroy(); modalChart = null; }
+    }
+});
+
+// ---- LISTA PARTITE (ORA CORRETTA) ----
 function renderListaPartite() {
     const wrap = document.getElementById("lista-partite");
+    if (!wrap) return;
     wrap.innerHTML = "";
-    if (matches.length === 0) {
+
+    if (!matches || matches.length === 0) {
         wrap.innerHTML = `<p class="empty-msg">Nessuna partita registrata.</p>`;
         return;
     }
@@ -786,16 +1049,41 @@ function renderListaPartite() {
         const card = document.createElement("div");
         card.className = "partita-card";
 
-        const ovrA = m.teamA.reduce((sum, pid) => sum + (players.find(pl => pl.id === pid)?.overall || 0), 0);
-        const ovrB = m.teamB.reduce((sum, pid) => sum + (players.find(pl => pl.id === pid)?.overall || 0), 0);
+        // Calcola overall
+        let ovrA = 0, ovrB = 0;
+        if (m.teamA && m.teamA.length) {
+            m.teamA.forEach(pid => {
+                const p = players.find(pl => pl.id === pid);
+                ovrA += p ? p.overall : 0;
+            });
+        }
+        if (m.teamB && m.teamB.length) {
+            m.teamB.forEach(pid => {
+                const p = players.find(pl => pl.id === pid);
+                ovrB += p ? p.overall : 0;
+            });
+        }
         const maxOvr = Math.max(ovrA, ovrB, 1);
         const percentA = (ovrA / maxOvr) * 100;
         const percentB = (ovrB / maxOvr) * 100;
 
+        // Statistiche avanzate
+        const difReti = m.scoreA - m.scoreB;
+        const mediaGolA = (m.teamA && m.teamA.length > 0) ? (m.scoreA / m.teamA.length).toFixed(1) : '0';
+        const mediaGolB = (m.teamB && m.teamB.length > 0) ? (m.scoreB / m.teamB.length).toFixed(1) : '0';
+        let cleanSheet = 'Nessuno';
+        if (m.scoreA > 0 && m.scoreB === 0) cleanSheet = 'A';
+        else if (m.scoreB > 0 && m.scoreA === 0) cleanSheet = 'B';
+
+        // Marcatori
         const marcatoriA = (m.scorers || []).filter(sc => sc.squad === 'A');
         const marcatoriB = (m.scorers || []).filter(sc => sc.squad === 'B');
-        const txtA = marcatoriA.map(sc => `${nomeGiocatore(sc.playerId)} (${sc.goals})`).join(', ') || 'Nessuno';
-        const txtB = marcatoriB.map(sc => `${nomeGiocatore(sc.playerId)} (${sc.goals})`).join(', ') || 'Nessuno';
+        const txtA = marcatoriA.length ? marcatoriA.map(sc => `${nomeGiocatore(sc.playerId)} (${sc.goals})`).join(', ') : 'Nessuno';
+        const txtB = marcatoriB.length ? marcatoriB.map(sc => `${nomeGiocatore(sc.playerId)} (${sc.goals})`).join(', ') : 'Nessuno';
+
+        // Nomi giocatori
+        const nomiA = (m.teamA || []).map(nomeGiocatore).join(', ');
+        const nomiB = (m.teamB || []).map(nomeGiocatore).join(', ');
 
         card.innerHTML = `
           <div class="p-header">
@@ -807,15 +1095,21 @@ function renderListaPartite() {
             <span class="score-divider">—</span>
             <span class="score-b">${m.scoreB}</span>
           </div>
+          <div class="match-stats-extra">
+            <span class="stat-badge">📊 Diff. reti: ${difReti > 0 ? '+' : ''}${difReti}</span>
+            <span class="stat-badge green">A: media ${mediaGolA} gol/gioc.</span>
+            <span class="stat-badge blue">B: media ${mediaGolB} gol/gioc.</span>
+            <span class="stat-badge gold">🧤 Clean sheet: ${cleanSheet}</span>
+          </div>
           <div class="squadre-riepilogo">
             <div class="sq-a">
               <span class="sq-label">🟢 Squadra A</span>
-              <div class="sq-players">${m.teamA.map(nomeGiocatore).join(", ")}</div>
+              <div class="sq-players">${nomiA}</div>
               <div class="sq-ovr"><span class="ovr-label">OVR</span> ${ovrA}</div>
             </div>
             <div class="sq-b">
               <span class="sq-label">🔵 Squadra B</span>
-              <div class="sq-players">${m.teamB.map(nomeGiocatore).join(", ")}</div>
+              <div class="sq-players">${nomiB}</div>
               <div class="sq-ovr"><span class="ovr-label">OVR</span> ${ovrB}</div>
             </div>
           </div>
@@ -828,25 +1122,111 @@ function renderListaPartite() {
             <div><span style="color:var(--accent-blue);">B</span> ${txtB}</div>
           </div>
           <div class="p-actions">
-            <button class="btn btn-danger btn-sm" onclick="eliminaPartita('${m.id}')">Elimina</button>
+            <button class="btn btn-secondary btn-sm" onclick="window.modificaPartita('${m.id}')">✏️ Modifica</button>
+            <button class="btn btn-danger btn-sm" onclick="window.eliminaPartita('${m.id}')">Elimina</button>
           </div>
         `;
         wrap.appendChild(card);
     });
 }
 
-function formatData(iso) {
-    const d = new Date(iso + "T00:00:00");
-    return d.toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
-}
+// ---- MODIFICA PARTITA ----
+window.modificaPartita = function(id) {
+    const m = matches.find(m => m.id === id);
+    if (!m) {
+        showToast('Partita non trovata.', 'error');
+        return;
+    }
 
+    editMatchId = id;
+    document.getElementById('edit-match-id').value = id;
+    document.getElementById('btn-salva-partita').textContent = '✏️ Aggiorna Partita';
+    document.getElementById('btn-annulla-modifica').style.display = 'inline-block';
+
+    // Popola form
+    document.getElementById('p-data').value = m.date;
+    document.getElementById('p-tipo').value = m.type;
+    document.getElementById('p-score-a').value = m.scoreA;
+    document.getElementById('p-score-b').value = m.scoreB;
+
+    // Seleziona giocatori
+    selezioneA = new Set(m.teamA || []);
+    selezioneB = new Set(m.teamB || []);
+    aggiornaChipVisuali();
+    aggiornaLimite();
+
+    // Popola marcatori
+    document.getElementById('marcatori-wrap-a').innerHTML = '';
+    document.getElementById('marcatori-wrap-b').innerHTML = '';
+    (m.scorers || []).forEach(sc => {
+        const squadra = sc.squad === 'A' ? 'a' : 'b';
+        const wrapId = squadra === 'a' ? 'marcatori-wrap-a' : 'marcatori-wrap-b';
+        const wrap = document.getElementById(wrapId);
+        const row = document.createElement("div");
+        row.className = "marcatore-row";
+        const sel = document.createElement("select");
+        sel.className = "sel-giocatore";
+        popolaSelectGiocatoriPerSquadra(sel, squadra);
+        sel.value = sc.playerId;
+        const inputGol = document.createElement("input");
+        inputGol.type = "number";
+        inputGol.className = "input-gol";
+        inputGol.min = "1";
+        inputGol.value = sc.goals;
+        inputGol.placeholder = "Gol";
+        const btnDel = document.createElement("button");
+        btnDel.type = "button";
+        btnDel.className = "btn-remove";
+        btnDel.textContent = "✕";
+        btnDel.addEventListener("click", () => row.remove());
+        row.appendChild(sel);
+        row.appendChild(inputGol);
+        row.appendChild(btnDel);
+        wrap.appendChild(row);
+    });
+    if ((m.scorers || []).length === 0) {
+        aggiungiRigaMarcatore('a');
+        aggiungiRigaMarcatore('b');
+    }
+
+    // Vai alla tab
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelector('[data-tab="nuova-partita"]').classList.add('active');
+    document.getElementById('nuova-partita').classList.add('active');
+
+    showToast('Modifica partita in corso...', 'info');
+};
+
+// ---- ELIMINA PARTITA ----
 window.eliminaPartita = function(id) {
     if (!confirm("Eliminare questa partita?")) return;
     matches = matches.filter(m => m.id !== id);
-    saveMatches(); renderListaPartite(); aggiornaStats();
+    saveMatches();
+    renderListaPartite();
+    aggiornaStats();
+    showToast('Partita eliminata', 'info');
 };
 
-// ---- GRAFICI (CORRETTI) ----
+// ---- ORDINAMENTO CLASSIFICA ----
+document.querySelectorAll('#tabella-classifica thead th[data-sort]').forEach(th => {
+    th.addEventListener('click', function() {
+        const col = this.dataset.sort;
+        if (sortColumn === col) {
+            sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            sortColumn = col;
+            sortDirection = 'desc';
+        }
+        document.querySelectorAll('#tabella-classifica thead th[data-sort]').forEach(h => {
+            h.classList.remove('sorted-asc', 'sorted-desc');
+        });
+        this.classList.add(sortDirection === 'asc' ? 'sorted-asc' : 'sorted-desc');
+        renderClassifica();
+    });
+});
+
+// ---- GRAFICI ----
 function distruggiGrafici() {
     Object.values(charts).forEach(c => c && c.destroy());
     charts = {};
@@ -855,7 +1235,6 @@ function distruggiGrafici() {
 function renderTuttiGrafici() {
     distruggiGrafici();
 
-    // ---- FORZA DIMENSIONI VISIBILI ----
     const canvases = ['chart-andamento', 'chart-marcatori', 'chart-punti', 'chart-tipi'];
     canvases.forEach(id => {
         const canvas = document.getElementById(id);
@@ -869,19 +1248,18 @@ function renderTuttiGrafici() {
         }
     });
 
-    // ---- ASPETTA CHE LA TAB SIA COMPLETAMENTE VISIBILE ----
     setTimeout(() => {
-        renderGraficoAndamento();
-        renderGraficoMarcatori();
-        renderGraficoPunti();
-        renderGraficoTipi();
-        
-        // Forza il resize di ogni grafico
+        try {
+            renderGraficoAndamento();
+            renderGraficoMarcatori();
+            renderGraficoPunti();
+            renderGraficoTipi();
+        } catch (e) {
+            console.error('Errore creazione grafici:', e);
+        }
         setTimeout(() => {
-            Object.values(charts).forEach(c => {
-                if (c && c.resize) c.resize();
-            });
-        }, 100);
+            Object.values(charts).forEach(c => { try { c && c.resize && c.resize(); } catch (e) {} });
+        }, 150);
     }, 400);
 }
 
@@ -891,22 +1269,23 @@ function coloreDaIndice(i) {
 }
 
 function chartOptionsBase() {
+    const isMobile = window.innerWidth < 600;
     return {
         responsive: true,
         maintainAspectRatio: false,
         interaction: { mode: "index", intersect: false },
         plugins: {
             legend: {
-                labels: { color: "#94a3b8", font: { size: 10 }, boxWidth: 12, padding: 12 }
+                labels: { color: "#94a3b8", font: { size: isMobile ? 8 : 10 }, boxWidth: 12, padding: 12 }
             }
         },
         scales: {
             x: {
-                ticks: { color: "#64748b", font: { size: 9 } },
+                ticks: { color: "#64748b", font: { size: isMobile ? 7 : 9 } },
                 grid: { color: "rgba(255,255,255,0.04)" }
             },
             y: {
-                ticks: { color: "#64748b", font: { size: 9 } },
+                ticks: { color: "#64748b", font: { size: isMobile ? 7 : 9 } },
                 grid: { color: "rgba(255,255,255,0.04)" },
                 beginAtZero: true
             }
@@ -917,7 +1296,7 @@ function chartOptionsBase() {
 function renderGraficoAndamento() {
     const ctx = document.getElementById("chart-andamento");
     if (!ctx) return;
-    const statsAttuali = calcolaStatistiche();
+    const statsAttuali = calcolaStatistiche('all');
     const topPlayers = statsAttuali.slice(0, 8).map(s => s.id);
     if (topPlayers.length === 0 || matches.length === 0) return;
 
@@ -930,8 +1309,8 @@ function renderGraficoAndamento() {
         const vincitoreA = m.scoreA > m.scoreB;
         const vincitoreB = m.scoreB > m.scoreA;
         topPlayers.forEach(pid => {
-            if (m.teamA.includes(pid)) { cumulato[pid] += 1; if (vincitoreA) cumulato[pid] += 3; }
-            else if (m.teamB.includes(pid)) { cumulato[pid] += 1; if (vincitoreB) cumulato[pid] += 3; }
+            if ((m.teamA || []).includes(pid)) { cumulato[pid] += 1; if (vincitoreA) cumulato[pid] += 3; }
+            else if ((m.teamB || []).includes(pid)) { cumulato[pid] += 1; if (vincitoreB) cumulato[pid] += 3; }
             puntiCumulativi[pid].push(cumulato[pid]);
         });
     });
@@ -955,15 +1334,10 @@ function renderGraficoAndamento() {
     });
 }
 
-function formatDataBreve(iso) {
-    const d = new Date(iso + "T00:00:00");
-    return d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" });
-}
-
 function renderGraficoMarcatori() {
     const ctx = document.getElementById("chart-marcatori");
     if (!ctx) return;
-    const stats = calcolaStatistiche().filter(s => s.gol > 0).sort((a, b) => b.gol - a.gol).slice(0, 10);
+    const stats = calcolaStatistiche('all').filter(s => s.gol > 0).sort((a, b) => b.gol - a.gol).slice(0, 10);
     if (stats.length === 0) return;
     charts.marcatori = new Chart(ctx, {
         type: "bar",
@@ -983,7 +1357,7 @@ function renderGraficoMarcatori() {
 function renderGraficoPunti() {
     const ctx = document.getElementById("chart-punti");
     if (!ctx) return;
-    const stats = calcolaStatistiche().slice(0, 15);
+    const stats = calcolaStatistiche('all').slice(0, 15);
     if (stats.length === 0) return;
     charts.punti = new Chart(ctx, {
         type: "bar",
@@ -1053,7 +1427,8 @@ document.getElementById("btn-import-csv").addEventListener("click", () => {
             }
             savePlayers(); renderTabellaGiocatori(); aggiornaStats();
             status.textContent = `✅ Importati ${aggiunti}, aggiornati ${aggiornati}.`;
-        } catch (err) { status.textContent = "❌ Errore lettura."; console.error(err); }
+            showToast(`Importati ${aggiunti} giocatori`, 'success');
+        } catch (err) { status.textContent = "❌ Errore lettura."; showToast('Errore import CSV', 'error'); console.error(err); }
     };
     reader.readAsText(file, "UTF-8");
 });
@@ -1065,11 +1440,12 @@ document.getElementById("btn-export-json").addEventListener("click", () => {
     const a = document.createElement("a"); a.href = url;
     a.download = `campionato_backup_${new Date().toISOString().slice(0, 10)}.json`;
     a.click(); URL.revokeObjectURL(url);
+    showToast('Backup esportato', 'success');
 });
 
 document.getElementById("btn-import-json").addEventListener("click", () => {
     const file = document.getElementById("input-json").files[0];
-    if (!file) { alert("Seleziona un file JSON."); return; }
+    if (!file) { showToast('Seleziona un file JSON.', 'error'); return; }
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
@@ -1077,9 +1453,9 @@ document.getElementById("btn-import-json").addEventListener("click", () => {
             if (!confirm("Sovrascrivere tutti i dati?")) return;
             players = dati.players || []; matches = dati.matches || [];
             savePlayers(); saveMatches();
-            alert("✅ Backup importato.");
+            showToast('✅ Backup importato.', 'success');
             renderTabellaGiocatori(); renderClassifica(); aggiornaStats();
-        } catch (err) { alert("❌ File non valido."); }
+        } catch (err) { showToast('❌ File non valido.', 'error'); }
     };
     reader.readAsText(file, "UTF-8");
 });
@@ -1089,7 +1465,7 @@ document.getElementById("btn-reset").addEventListener("click", () => {
     players = []; matches = [];
     savePlayers(); saveMatches();
     renderTabellaGiocatori(); renderClassifica(); aggiornaStats();
-    alert("Dati cancellati.");
+    showToast('Dati cancellati.', 'info');
 });
 
 // ---- INIT ----

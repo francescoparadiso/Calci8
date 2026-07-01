@@ -3,19 +3,22 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Calci8 ⚽</title>
+    <title>Campionato tra Amici ⚽</title>
     <link rel="stylesheet" href="style.css" />
-<script src="https://cdn.jsdelivr.net/npm/chart.js">
-</script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js">
+    </script>
 </head>
 <body>
 
     <!-- SFONDO ANIMATO CALCISTICO -->
     <canvas id="bg-canvas"></canvas>
 
+    <!-- TOAST CONTAINER -->
+    <div id="toast-container"></div>
+
     <header class="topbar">
         <div class="topbar-inner">
-            <h1>⚽ Calci8 <span></span></h1>
+            <h1>⚽ Campionato <span>tra Amici</span></h1>
             <nav id="tabs">
                 <button class="tab-btn active" data-tab="dashboard">Classifica</button>
                 <button class="tab-btn" data-tab="nuova-partita">Nuova Partita</button>
@@ -30,6 +33,19 @@
     <main>
         <!-- DASHBOARD -->
         <section id="dashboard" class="tab-content active">
+            <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:16px;">
+                <h2 style="margin:0; font-weight:600; font-size:1.2rem;">🏆 Classifica Generale</h2>
+                <div class="form-group" style="min-width:160px; max-width:220px;">
+                    <label for="filtro-tipo">Filtra per tipo</label>
+                    <select id="filtro-tipo">
+                        <option value="all">Tutte le partite</option>
+                        <option value="calcetto">Calcetto (5vs5)</option>
+                        <option value="calcio6">Calcio a 6</option>
+                        <option value="calcio7">Calcio a 7</option>
+                        <option value="calcio8">Calcio a 8</option>
+                    </select>
+                </div>
+            </div>
             <div class="stats-grid" id="stats-grid">
                 <div class="stat-card">
                     <div class="stat-value" id="stat-giocatori">0</div>
@@ -48,20 +64,19 @@
                     <div class="stat-label">Capocannoniere</div>
                 </div>
             </div>
-            <h2 style="margin-bottom:16px; font-weight:600; font-size:1.2rem;">🏆 Classifica Generale</h2>
             <div class="table-wrap">
                 <table id="tabella-classifica">
                     <thead>
                         <tr>
                             <th>#</th>
                             <th>Giocatore</th>
-                            <th>Ovr</th>
-                            <th>PG</th>
-                            <th>V</th>
-                            <th>P</th>
-                            <th>S</th>
-                            <th>Gol</th>
-                            <th>Punti</th>
+                            <th data-sort="overall">Ovr</th>
+                            <th data-sort="pg">PG</th>
+                            <th data-sort="v">V</th>
+                            <th data-sort="p">P</th>
+                            <th data-sort="s">S</th>
+                            <th data-sort="gol">Gol</th>
+                            <th data-sort="punti">Punti</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -73,6 +88,7 @@
         <section id="nuova-partita" class="tab-content">
             <h2 style="margin-bottom:18px; font-weight:600; font-size:1.2rem;">📝 Inserisci Partita</h2>
             <form id="form-partita" class="form-card">
+                <input type="hidden" id="edit-match-id" value="">
                 <div class="form-row">
                     <div class="form-group">
                         <label>Data</label>
@@ -127,7 +143,8 @@
                 </div>
 
                 <div class="form-actions" style="margin-top:12px;">
-                    <button type="submit" class="btn">💾 Salva Partita</button>
+                    <button type="submit" class="btn" id="btn-salva-partita">💾 Salva Partita</button>
+                    <button type="button" class="btn btn-secondary" id="btn-annulla-modifica" style="display:none;">✕ Annulla</button>
                 </div>
             </form>
         </section>
@@ -219,6 +236,18 @@
             </div>
         </section>
     </main>
+
+    <!-- MODALE STATISTICHE GIOCATORE -->
+    <div id="player-modal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close">&times;</span>
+            <h2 id="modal-player-name"></h2>
+            <div id="modal-player-stats"></div>
+            <div style="margin-top:16px;">
+                <canvas id="modal-player-chart" height="150"></canvas>
+            </div>
+        </div>
+    </div>
 
     <footer>
         Campionato tra Amici · dati locali · fatto con <span>❤️</span>
