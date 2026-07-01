@@ -250,7 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /* ============================================================
-   APP PRINCIPALE (con tutte le migliorie)
+   APP PRINCIPALE (con validazione marcatori)
    ============================================================ */
 
 const STORAGE_KEY_PLAYERS = "campionato_players";
@@ -389,13 +389,11 @@ function nomeGiocatore(id) {
     return p ? p.name : "(eliminato)";
 }
 
-// ---- FUNZIONE FORMAT DATA (ora definita PRIMA di renderListaPartite) ----
 function formatData(iso) {
     if (!iso) return 'Data non valida';
     const d = new Date(iso + "T00:00:00");
     return d.toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
 }
-
 function formatDataBreve(iso) {
     if (!iso) return '';
     const d = new Date(iso + "T00:00:00");
@@ -707,6 +705,7 @@ function aggiungiRigaMarcatore(squadra) {
     wrap.appendChild(row);
 }
 
+// ---- SALVATAGGIO PARTITA (CON VALIDAZIONE COERENZA) ----
 document.getElementById("form-partita").addEventListener("submit", e => {
     e.preventDefault();
 
@@ -727,17 +726,22 @@ document.getElementById("form-partita").addEventListener("submit", e => {
         return;
     }
 
+    // ---- RACCOLTA MARCATORI ----
     const scorers = [];
+    let totalGolA = 0;
+    let totalGolB = 0;
+
     document.querySelectorAll('#marcatori-wrap-a .marcatore-row').forEach(row => {
         const sel = row.querySelector(".sel-giocatore");
         const inputGol = row.querySelector(".input-gol");
-        // CONTROLLO SICUREZZA: se manca l'input, salta
         if (!inputGol) return;
         const gol = parseInt(inputGol.value, 10) || 0;
         if (sel && sel.value && gol > 0) {
             scorers.push({ playerId: sel.value, goals: gol, squad: 'A' });
+            totalGolA += gol;
         }
     });
+
     document.querySelectorAll('#marcatori-wrap-b .marcatore-row').forEach(row => {
         const sel = row.querySelector(".sel-giocatore");
         const inputGol = row.querySelector(".input-gol");
@@ -745,11 +749,22 @@ document.getElementById("form-partita").addEventListener("submit", e => {
         const gol = parseInt(inputGol.value, 10) || 0;
         if (sel && sel.value && gol > 0) {
             scorers.push({ playerId: sel.value, goals: gol, squad: 'B' });
+            totalGolB += gol;
         }
     });
 
+    // ---- VALIDAZIONE COERENZA RISULTATO ----
+    if (totalGolA !== scoreA) {
+        showToast(`⚠️ I gol della Squadra A non corrispondono: risultato ${scoreA}, marcatori totali ${totalGolA}.`, 'error');
+        return;
+    }
+    if (totalGolB !== scoreB) {
+        showToast(`⚠️ I gol della Squadra B non corrispondono: risultato ${scoreB}, marcatori totali ${totalGolB}.`, 'error');
+        return;
+    }
+
+    // ---- SALVATAGGIO ----
     if (editMatchId) {
-        // Modifica partita esistente
         const idx = matches.findIndex(m => m.id === editMatchId);
         if (idx !== -1) {
             matches[idx] = {
@@ -788,7 +803,6 @@ document.getElementById("form-partita").addEventListener("submit", e => {
     document.getElementById('marcatori-wrap-b').innerHTML = '';
     renderPlayerPickers();
     aggiornaStats();
-    // Ricarica la lista partite se la tab è attiva
     if (document.getElementById('partite').classList.contains('active')) {
         renderListaPartite();
     }
@@ -833,7 +847,6 @@ function calcolaStatistiche(filtroTipo = null) {
         const vincitoreB = m.scoreB > m.scoreA;
         const pareggio = m.scoreA === m.scoreB;
 
-        // Clean sheet
         if (vincitoreA && m.scoreB === 0) {
             m.teamA.forEach(pid => { if (stats[pid]) stats[pid].cleanSheets++; });
         }
@@ -870,7 +883,6 @@ function renderClassifica() {
     const filtro = document.getElementById('filtro-tipo').value;
     const stats = calcolaStatistiche(filtro);
 
-    // Ordina
     stats.sort((a, b) => {
         let valA = a[sortColumn] || 0;
         let valB = b[sortColumn] || 0;
@@ -906,7 +918,6 @@ function renderClassifica() {
         tbody.appendChild(tr);
     });
 
-    // Click su riga per statistiche individuali
     document.querySelectorAll('#tabella-classifica tbody td.nome-cell').forEach(td => {
         td.addEventListener('click', function() {
             const id = this.dataset.playerId;
@@ -959,7 +970,6 @@ function apriModalGiocatore(id) {
         <div class="stat-item"><span class="stat-label">Clean sheet</span><span class="stat-value">${stats.cleanSheets || 0}</span></div>
     `;
 
-    // Grafico andamento punti per questo giocatore
     if (modalChart) { modalChart.destroy(); modalChart = null; }
     const ctx = document.getElementById('modal-player-chart');
     if (ctx) {
@@ -974,7 +984,6 @@ function apriModalGiocatore(id) {
                 const inB = m.teamB.includes(id);
                 const vincitoreA = m.scoreA > m.scoreB;
                 const vincitoreB = m.scoreB > m.scoreA;
-                const pareggio = m.scoreA === m.scoreB;
                 if (inA || inB) {
                     cum += 1;
                     if ((inA && vincitoreA) || (inB && vincitoreB)) cum += 3;
@@ -1033,7 +1042,7 @@ window.addEventListener('click', (e) => {
     }
 });
 
-// ---- LISTA PARTITE (ORA CORRETTA) ----
+// ---- LISTA PARTITE ----
 function renderListaPartite() {
     const wrap = document.getElementById("lista-partite");
     if (!wrap) return;
@@ -1049,7 +1058,6 @@ function renderListaPartite() {
         const card = document.createElement("div");
         card.className = "partita-card";
 
-        // Calcola overall
         let ovrA = 0, ovrB = 0;
         if (m.teamA && m.teamA.length) {
             m.teamA.forEach(pid => {
@@ -1067,7 +1075,6 @@ function renderListaPartite() {
         const percentA = (ovrA / maxOvr) * 100;
         const percentB = (ovrB / maxOvr) * 100;
 
-        // Statistiche avanzate
         const difReti = m.scoreA - m.scoreB;
         const mediaGolA = (m.teamA && m.teamA.length > 0) ? (m.scoreA / m.teamA.length).toFixed(1) : '0';
         const mediaGolB = (m.teamB && m.teamB.length > 0) ? (m.scoreB / m.teamB.length).toFixed(1) : '0';
@@ -1075,13 +1082,11 @@ function renderListaPartite() {
         if (m.scoreA > 0 && m.scoreB === 0) cleanSheet = 'A';
         else if (m.scoreB > 0 && m.scoreA === 0) cleanSheet = 'B';
 
-        // Marcatori
         const marcatoriA = (m.scorers || []).filter(sc => sc.squad === 'A');
         const marcatoriB = (m.scorers || []).filter(sc => sc.squad === 'B');
         const txtA = marcatoriA.length ? marcatoriA.map(sc => `${nomeGiocatore(sc.playerId)} (${sc.goals})`).join(', ') : 'Nessuno';
         const txtB = marcatoriB.length ? marcatoriB.map(sc => `${nomeGiocatore(sc.playerId)} (${sc.goals})`).join(', ') : 'Nessuno';
 
-        // Nomi giocatori
         const nomiA = (m.teamA || []).map(nomeGiocatore).join(', ');
         const nomiB = (m.teamB || []).map(nomeGiocatore).join(', ');
 
@@ -1130,7 +1135,6 @@ function renderListaPartite() {
     });
 }
 
-// ---- MODIFICA PARTITA ----
 window.modificaPartita = function(id) {
     const m = matches.find(m => m.id === id);
     if (!m) {
@@ -1143,19 +1147,16 @@ window.modificaPartita = function(id) {
     document.getElementById('btn-salva-partita').textContent = '✏️ Aggiorna Partita';
     document.getElementById('btn-annulla-modifica').style.display = 'inline-block';
 
-    // Popola form
     document.getElementById('p-data').value = m.date;
     document.getElementById('p-tipo').value = m.type;
     document.getElementById('p-score-a').value = m.scoreA;
     document.getElementById('p-score-b').value = m.scoreB;
 
-    // Seleziona giocatori
     selezioneA = new Set(m.teamA || []);
     selezioneB = new Set(m.teamB || []);
     aggiornaChipVisuali();
     aggiornaLimite();
 
-    // Popola marcatori
     document.getElementById('marcatori-wrap-a').innerHTML = '';
     document.getElementById('marcatori-wrap-b').innerHTML = '';
     (m.scorers || []).forEach(sc => {
@@ -1189,7 +1190,6 @@ window.modificaPartita = function(id) {
         aggiungiRigaMarcatore('b');
     }
 
-    // Vai alla tab
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     document.querySelector('[data-tab="nuova-partita"]').classList.add('active');
@@ -1198,7 +1198,6 @@ window.modificaPartita = function(id) {
     showToast('Modifica partita in corso...', 'info');
 };
 
-// ---- ELIMINA PARTITA ----
 window.eliminaPartita = function(id) {
     if (!confirm("Eliminare questa partita?")) return;
     matches = matches.filter(m => m.id !== id);
