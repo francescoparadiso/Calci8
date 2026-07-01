@@ -1,187 +1,229 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Campionato Calcetto</title>
-<link rel="stylesheet" href="style.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Calci8 ⚽</title>
+    <link rel="stylesheet" href="style.css" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js">
+</script>
 </head>
 <body>
 
-<header class="topbar">
-  <h1>⚽ Campionato tra Amici</h1>
-  <nav id="tabs">
-    <button class="tab-btn active" data-tab="dashboard">Classifica</button>
-    <button class="tab-btn" data-tab="nuova-partita">Nuova Partita</button>
-    <button class="tab-btn" data-tab="partite">Partite</button>
-    <button class="tab-btn" data-tab="giocatori">Giocatori</button>
-    <button class="tab-btn" data-tab="statistiche">Statistiche</button>
-    <button class="tab-btn" data-tab="dati">Dati</button>
-  </nav>
-</header>
+    <!-- SFONDO ANIMATO CALCISTICO -->
+    <canvas id="bg-canvas"></canvas>
 
-<main>
-
-  <!-- DASHBOARD / CLASSIFICA -->
-  <section id="dashboard" class="tab-content active">
-    <h2>Classifica Generale</h2>
-    <div class="table-wrap">
-      <table id="tabella-classifica">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Giocatore</th>
-            <th>Ovr</th>
-            <th>PG</th>
-            <th>V</th>
-            <th>P</th>
-            <th>S</th>
-            <th>Gol</th>
-            <th>Punti</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- NUOVA PARTITA -->
-  <section id="nuova-partita" class="tab-content">
-    <h2>Inserisci Partita</h2>
-    <form id="form-partita">
-      <div class="form-row">
-        <label>Data
-          <input type="date" id="p-data" required>
-        </label>
-        <label>Tipo partita
-          <select id="p-tipo" required>
-            <option value="calcetto">Calcetto (5vs5)</option>
-            <option value="calcio6">Calcio a 6</option>
-            <option value="calcio7">Calcio a 7</option>
-            <option value="calcio8">Calcio a 8</option>
-          </select>
-        </label>
-      </div>
-
-      <div class="squadre-wrap">
-        <div class="squadra-box" id="box-squadra-a">
-          <h3>Squadra A</h3>
-          <div class="player-picker" id="picker-a"></div>
-          <label>Gol Squadra A
-            <input type="number" id="p-score-a" min="0" value="0" required>
-          </label>
+    <header class="topbar">
+        <div class="topbar-inner">
+            <h1>⚽ Calci8 <span></span></h1>
+            <nav id="tabs">
+                <button class="tab-btn active" data-tab="dashboard">Classifica</button>
+                <button class="tab-btn" data-tab="nuova-partita">Nuova Partita</button>
+                <button class="tab-btn" data-tab="partite">Partite</button>
+                <button class="tab-btn" data-tab="giocatori">Giocatori</button>
+                <button class="tab-btn" data-tab="statistiche">Statistiche</button>
+                <button class="tab-btn" data-tab="dati">Dati</button>
+            </nav>
         </div>
+    </header>
 
-        <div class="squadra-box" id="box-squadra-b">
-          <h3>Squadra B</h3>
-          <div class="player-picker" id="picker-b"></div>
-          <label>Gol Squadra B
-            <input type="number" id="p-score-b" min="0" value="0" required>
-          </label>
-        </div>
-      </div>
+    <main>
+        <!-- DASHBOARD -->
+        <section id="dashboard" class="tab-content active">
+            <div class="stats-grid" id="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-giocatori">0</div>
+                    <div class="stat-label">Giocatori</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-partite">0</div>
+                    <div class="stat-label">Partite</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-gol">0</div>
+                    <div class="stat-label">Gol totali</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-capocannoniere">—</div>
+                    <div class="stat-label">Capocannoniere</div>
+                </div>
+            </div>
+            <h2 style="margin-bottom:16px; font-weight:600; font-size:1.2rem;">🏆 Classifica Generale</h2>
+            <div class="table-wrap">
+                <table id="tabella-classifica">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Giocatore</th>
+                            <th>Ovr</th>
+                            <th>PG</th>
+                            <th>V</th>
+                            <th>P</th>
+                            <th>S</th>
+                            <th>Gol</th>
+                            <th>Punti</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
 
-      <h3>Marcatori</h3>
-      <div id="marcatori-wrap"></div>
-      <button type="button" id="btn-add-marcatore">+ Aggiungi Marcatore</button>
+        <!-- NUOVA PARTITA -->
+        <section id="nuova-partita" class="tab-content">
+            <h2 style="margin-bottom:18px; font-weight:600; font-size:1.2rem;">📝 Inserisci Partita</h2>
+            <form id="form-partita" class="form-card">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Data</label>
+                        <input type="date" id="p-data" required />
+                    </div>
+                    <div class="form-group">
+                        <label>Tipo partita</label>
+                        <select id="p-tipo" required>
+                            <option value="calcetto">Calcetto (5vs5)</option>
+                            <option value="calcio6">Calcio a 6</option>
+                            <option value="calcio7">Calcio a 7</option>
+                            <option value="calcio8">Calcio a 8</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="limite-messaggio" style="color:var(--accent-yellow); font-size:0.8rem; margin:8px 0; display:none;"></div>
+                <div class="squadre-wrap">
+                    <div class="squadra-box" id="box-squadra-a">
+                        <h3>Squadra A <span class="badge-team team-a-badge">Verde</span>
+                            <span class="badge-team" id="limite-a">0/5</span>
+                        </h3>
+                        <div class="player-picker" id="picker-a"></div>
+                        <div class="form-group">
+                            <label>Gol Squadra A</label>
+                            <input type="number" id="p-score-a" min="0" value="0" required />
+                        </div>
+                    </div>
+                    <div class="squadra-box" id="box-squadra-b">
+                        <h3>Squadra B <span class="badge-team team-b-badge">Blu</span>
+                            <span class="badge-team" id="limite-b">0/5</span>
+                        </h3>
+                        <div class="player-picker" id="picker-b"></div>
+                        <div class="form-group">
+                            <label>Gol Squadra B</label>
+                            <input type="number" id="p-score-b" min="0" value="0" required />
+                        </div>
+                    </div>
+                </div>
 
-      <div class="form-actions">
-        <button type="submit" id="btn-salva-partita">Salva Partita</button>
-      </div>
-    </form>
-  </section>
+                <!-- MARCATORI DIVISI PER SQUADRA -->
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:16px 0;">
+                    <div>
+                        <h3 style="font-size:0.9rem; font-weight:600; color: var(--accent-green);">🟢 Marcatori A</h3>
+                        <div id="marcatori-wrap-a"></div>
+                        <button type="button" class="btn btn-secondary btn-sm" data-target="a">+ Aggiungi</button>
+                    </div>
+                    <div>
+                        <h3 style="font-size:0.9rem; font-weight:600; color: var(--accent-blue);">🔵 Marcatori B</h3>
+                        <div id="marcatori-wrap-b"></div>
+                        <button type="button" class="btn btn-secondary btn-sm" data-target="b">+ Aggiungi</button>
+                    </div>
+                </div>
 
-  <!-- ELENCO PARTITE -->
-  <section id="partite" class="tab-content">
-    <h2>Storico Partite</h2>
-    <div id="lista-partite"></div>
-  </section>
+                <div class="form-actions" style="margin-top:12px;">
+                    <button type="submit" class="btn">💾 Salva Partita</button>
+                </div>
+            </form>
+        </section>
 
-  <!-- GIOCATORI -->
-  <section id="giocatori" class="tab-content">
-    <h2>Gestione Giocatori</h2>
-    <form id="form-giocatore" class="form-row">
-      <label>Nome
-        <input type="text" id="g-nome" required>
-      </label>
-      <label>Overall
-        <input type="number" id="g-overall" min="1" max="99" value="70" required>
-      </label>
-      <button type="submit">Aggiungi Giocatore</button>
-    </form>
-    <div class="table-wrap">
-      <table id="tabella-giocatori">
-        <thead>
-          <tr><th>Nome</th><th>Overall</th><th></th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </section>
+        <!-- PARTITE -->
+        <section id="partite" class="tab-content">
+            <h2 style="margin-bottom:18px; font-weight:600; font-size:1.2rem;">📋 Storico Partite</h2>
+            <div id="lista-partite"></div>
+        </section>
 
-  <!-- STATISTICHE / GRAFICI -->
-  <section id="statistiche" class="tab-content">
-    <h2>Statistiche & Grafici</h2>
+        <!-- GIOCATORI -->
+        <section id="giocatori" class="tab-content">
+            <h2 style="margin-bottom:18px; font-weight:600; font-size:1.2rem;">👤 Gestione Giocatori</h2>
+            <form id="form-giocatore" class="form-card">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Nome</label>
+                        <input type="text" id="g-nome" required placeholder="es. Marco" />
+                    </div>
+                    <div class="form-group">
+                        <label>Overall (1–99)</label>
+                        <input type="number" id="g-overall" min="1" max="99" value="70" required />
+                    </div>
+                    <button type="submit" class="btn" style="align-self:flex-end;">➕ Aggiungi</button>
+                </div>
+            </form>
+            <div class="table-wrap">
+                <table id="tabella-giocatori">
+                    <thead>
+                        <tr><th>Nome</th><th>Overall</th><th style="text-align:right;">Azioni</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
 
-    <div class="chart-box">
-      <h3>Andamento Punti nel Tempo (Top 8 giocatori)</h3>
-      <canvas id="chart-andamento"></canvas>
-    </div>
+        <!-- STATISTICHE -->
+        <section id="statistiche" class="tab-content">
+            <h2 style="margin-bottom:18px; font-weight:600; font-size:1.2rem;">📊 Statistiche &amp; Grafici</h2>
+            <div class="chart-grid">
+                <div class="chart-box">
+                    <h3>📈 Andamento Punti (Top 8)</h3>
+                    <canvas id="chart-andamento"></canvas>
+                </div>
+                <div class="chart-box">
+                    <h3>⚽ Classifica Marcatori</h3>
+                    <canvas id="chart-marcatori"></canvas>
+                </div>
+                <div class="chart-box">
+                    <h3>🏅 Punti Totali per Giocatore</h3>
+                    <canvas id="chart-punti"></canvas>
+                </div>
+                <div class="chart-box">
+                    <h3>📌 Partite per Tipo</h3>
+                    <canvas id="chart-tipi"></canvas>
+                </div>
+            </div>
+        </section>
 
-    <div class="chart-box">
-      <h3>Classifica Marcatori</h3>
-      <canvas id="chart-marcatori"></canvas>
-    </div>
+        <!-- DATI -->
+        <section id="dati" class="tab-content">
+            <h2 style="margin-bottom:18px; font-weight:600; font-size:1.2rem;">⚙️ Gestione Dati</h2>
+            <div class="dati-grid">
+                <div class="dati-box">
+                    <h3>📂 Importa Giocatori da CSV</h3>
+                    <p>Formato: <code>Nome,Overall</code> (con intestazione opzionale)</p>
+                    <div class="file-input-wrap">
+                        <input type="file" id="input-csv-players" accept=".csv" />
+                        <button id="btn-import-csv" class="btn btn-secondary btn-sm">Importa</button>
+                    </div>
+                    <span id="import-status"></span>
+                </div>
+                <div class="dati-box">
+                    <h3>💾 Backup Completo (JSON)</h3>
+                    <div class="flex flex-wrap gap-8 items-center" style="margin-top:6px;">
+                        <button id="btn-export-json" class="btn btn-secondary btn-sm">📤 Esporta</button>
+                        <input type="file" id="input-json" accept=".json" style="flex:1; min-width:100px;" />
+                        <button id="btn-import-json" class="btn btn-secondary btn-sm">📥 Importa</button>
+                    </div>
+                </div>
+                <div class="dati-box" style="grid-column:1 / -1;">
+                    <h3 style="color:var(--accent-red);">⚠️ Zona Pericolosa</h3>
+                    <button id="btn-reset" class="btn btn-danger">🗑️ Cancella Tutti i Dati</button>
+                </div>
+            </div>
+            <div class="nota">
+                💡 I dati sono salvati nel <strong>localStorage</strong> del browser. Nessun server coinvolto.
+                Puoi esportare un backup per non perdere i tuoi dati.
+            </div>
+        </section>
+    </main>
 
-    <div class="chart-box">
-      <h3>Punti Totali per Giocatore</h3>
-      <canvas id="chart-punti"></canvas>
-    </div>
+    <footer>
+        Campionato tra Amici · dati locali · fatto con <span>❤️</span>
+    </footer>
 
-    <div class="chart-box">
-      <h3>Partite Giocate per Tipo</h3>
-      <canvas id="chart-tipi"></canvas>
-    </div>
-  </section>
-
-  <!-- DATI: IMPORT/EXPORT -->
-  <section id="dati" class="tab-content">
-    <h2>Gestione Dati</h2>
-
-    <div class="dati-box">
-      <h3>Importa Giocatori da CSV</h3>
-      <p>Formato atteso: colonne <code>Nome giocatore,Overall</code> (con intestazione).</p>
-      <input type="file" id="input-csv-players" accept=".csv">
-      <button id="btn-import-csv">Importa</button>
-      <span id="import-status"></span>
-    </div>
-
-    <div class="dati-box">
-      <h3>Backup Completo (JSON)</h3>
-      <button id="btn-export-json">Esporta Dati (Download JSON)</button>
-      <br><br>
-      <input type="file" id="input-json" accept=".json">
-      <button id="btn-import-json">Importa Backup JSON</button>
-    </div>
-
-    <div class="dati-box">
-      <h3>Zona Pericolosa</h3>
-      <button id="btn-reset" class="danger">Cancella Tutti i Dati</button>
-    </div>
-
-    <p class="nota">
-      Nota: i dati sono salvati nel <b>localStorage</b> del tuo browser (nessun server per ora).
-      In futuro potrai collegare l'app a un server per caricare i dati dei giocatori da un CSV remoto.
-    </p>
-  </section>
-
-</main>
-
-<footer>
-  <p>Campionato tra Amici · dati locali · fatto con ❤️</p>
-</footer>
-
-<script src="app.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>

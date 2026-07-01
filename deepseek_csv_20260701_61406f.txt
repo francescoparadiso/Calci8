@@ -1,0 +1,7 @@
+Nome giocatore,Overall
+Marco,78
+Luca,82
+Giovanni,75
+Andrea,88
+Francesco,70
+Davide,80
