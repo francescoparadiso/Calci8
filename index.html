@@ -3,22 +3,27 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Campionato tra Amici ⚽</title>
+    <title>Calci8 ⚽</title>
     <link rel="stylesheet" href="style.css" />
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js">
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
-    <!-- SFONDO ANIMATO CALCISTICO -->
+    <!-- SFONDO ANIMATO -->
     <canvas id="bg-canvas"></canvas>
 
     <!-- TOAST CONTAINER -->
     <div id="toast-container"></div>
 
+    <!-- LOADER -->
+    <div id="app-loader" style="position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:var(--bg-card); padding:24px 40px; border-radius:var(--radius-lg); border:1px solid var(--border-glass); z-index:9999; text-align:center; box-shadow:0 10px 40px rgba(0,0,0,0.6);">
+        <div style="font-size:2.5rem; margin-bottom:10px;">⏳</div>
+        <div style="color:var(--text-secondary); font-weight:500;">Caricamento dati...</div>
+    </div>
+
     <header class="topbar">
         <div class="topbar-inner">
-            <h1>⚽ Campionato <span>tra Amici</span></h1>
+            <h1>⚽ Calci8</h1>
             <nav id="tabs">
                 <button class="tab-btn active" data-tab="dashboard">Classifica</button>
                 <button class="tab-btn" data-tab="nuova-partita">Nuova Partita</button>
@@ -128,7 +133,6 @@
                     </div>
                 </div>
 
-                <!-- MARCATORI DIVISI PER SQUADRA -->
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:16px 0;">
                     <div>
                         <h3 style="font-size:0.9rem; font-weight:600; color: var(--accent-green);">🟢 Marcatori A</h3>
@@ -155,50 +159,78 @@
             <div id="lista-partite"></div>
         </section>
 
-        <!-- GIOCATORI -->
-        <section id="giocatori" class="tab-content">
-            <h2 style="margin-bottom:18px; font-weight:600; font-size:1.2rem;">👤 Gestione Giocatori</h2>
-            <form id="form-giocatore" class="form-card">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Nome</label>
-                        <input type="text" id="g-nome" required placeholder="es. Marco" />
-                    </div>
-                    <div class="form-group">
-                        <label>Overall (1–99)</label>
-                        <input type="number" id="g-overall" min="1" max="99" value="70" required />
-                    </div>
-                    <button type="submit" class="btn" style="align-self:flex-end;">➕ Aggiungi</button>
-                </div>
-            </form>
-            <div class="table-wrap">
-                <table id="tabella-giocatori">
-                    <thead>
-                        <tr><th>Nome</th><th>Overall</th><th style="text-align:right;">Azioni</th></tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
+<!-- GIOCATORI -->
+<section id="giocatori" class="tab-content">
+    <h2 style="margin-bottom:18px; font-weight:600; font-size:1.2rem;">👤 Gestione Giocatori</h2>
+    
+    <!-- FORM DI AGGIUNTA (esteso con statistiche) -->
+    <form id="form-giocatore" class="form-card">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Nome e Cognome</label>
+                <input type="text" id="g-nome" required placeholder="es. Marco Rossi" />
             </div>
-        </section>
+            <div class="form-group">
+                <label>Overall (1–99)</label>
+                <input type="number" id="g-overall" min="1" max="99" value="70" required />
+            </div>
+        </div>
+        <!-- Statistiche (valori di default) -->
+        <div class="form-row" style="margin-top:8px;">
+            <div class="form-group">
+                <label>Attacco</label>
+                <input type="number" id="g-attack" min="0" max="99" value="50" />
+            </div>
+            <div class="form-group">
+                <label>Difesa</label>
+                <input type="number" id="g-defense" min="0" max="99" value="50" />
+            </div>
+            <div class="form-group">
+                <label>Velocità</label>
+                <input type="number" id="g-pace" min="0" max="99" value="50" />
+            </div>
+            <div class="form-group">
+                <label>Resistenza</label>
+                <input type="number" id="g-stamina" min="0" max="99" value="50" />
+            </div>
+            <div class="form-group">
+                <label>Tiro</label>
+                <input type="number" id="g-shooting" min="0" max="99" value="50" />
+            </div>
+            <div class="form-group">
+                <label>Controllo</label>
+                <input type="number" id="g-control" min="0" max="99" value="50" />
+            </div>
+        </div>
+        <div style="margin-top:12px;">
+            <button type="submit" class="btn">➕ Aggiungi / Aggiorna</button>
+        </div>
+        <input type="hidden" id="edit-player-id" value="">
+    </form>
+
+    <!-- GRIGLIA DI CARD -->
+    <div id="giocatori-grid" class="players-grid"></div>
+</section>
 
         <!-- STATISTICHE -->
         <section id="statistiche" class="tab-content">
             <h2 style="margin-bottom:18px; font-weight:600; font-size:1.2rem;">📊 Statistiche &amp; Grafici</h2>
+            <p style="color:var(--text-secondary); font-size:0.8rem; margin-bottom:16px;">🔍 Clicca su un grafico per ingrandirlo</p>
             <div class="chart-grid">
-                <div class="chart-box">
-                    <h3>📈 Andamento Punti (Top 8)</h3>
+                <div class="chart-box" data-chart="andamento">
+                    <h3>📈 Andamento Punti (Top 8) <span style="font-size:0.6rem; color:var(--text-muted);">🔍</span></h3>
                     <canvas id="chart-andamento"></canvas>
                 </div>
-                <div class="chart-box">
-                    <h3>⚽ Classifica Marcatori</h3>
+                <div class="chart-box" data-chart="marcatori">
+                    <h3>⚽ Classifica Marcatori <span style="font-size:0.6rem; color:var(--text-muted);">🔍</span></h3>
                     <canvas id="chart-marcatori"></canvas>
                 </div>
-                <div class="chart-box">
-                    <h3>🏅 Punti Totali per Giocatore</h3>
+                <div class="chart-box" data-chart="punti">
+                    <h3>🏅 Punti Totali per Giocatore <span style="font-size:0.6rem; color:var(--text-muted);">🔍</span></h3>
                     <canvas id="chart-punti"></canvas>
                 </div>
-                <div class="chart-box">
-                    <h3>📌 Partite per Tipo</h3>
+                <div class="chart-box" data-chart="tipi">
+                    <h3>📌 Partite per Tipo <span style="font-size:0.6rem; color:var(--text-muted);">🔍</span></h3>
                     <canvas id="chart-tipi"></canvas>
                 </div>
             </div>
@@ -231,11 +263,21 @@
                 </div>
             </div>
             <div class="nota">
-                💡 I dati sono salvati nel <strong>localStorage</strong> del browser. Nessun server coinvolto.
-                Puoi esportare un backup per non perdere i tuoi dati.
+                💡 I dati sono salvati su <strong>Supabase</strong> (cloud). Nessun server locale coinvolto.
+                Puoi esportare un backup per sicurezza.
             </div>
         </section>
     </main>
+
+    <!-- MODALE GRAFICI -->
+    <div id="chart-modal" class="chart-modal">
+        <div class="chart-modal-content">
+            <span class="chart-modal-close">&times;</span>
+            <div class="chart-modal-body">
+                <canvas id="chart-modal-canvas"></canvas>
+            </div>
+        </div>
+    </div>
 
     <!-- MODALE STATISTICHE GIOCATORE -->
     <div id="player-modal" class="modal">
@@ -249,10 +291,8 @@
         </div>
     </div>
 
-    <footer>
-        Campionato tra Amici · dati locali · fatto con <span>❤️</span>
-    </footer>
-
+    <!-- Libreria Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="app.js"></script>
 </body>
 </html>

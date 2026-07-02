@@ -1174,3 +1174,274 @@ th[data-sort].sorted-desc::after {
         font-size: 0.75rem;
     }
 }
+/* ============================================================
+   MODALE PER INGRANDIRE I GRAFICI
+   ============================================================ */
+.chart-modal {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.chart-modal.active {
+    display: flex;
+}
+
+.chart-modal-content {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-glass);
+    max-width: 95vw;
+    max-height: 90vh;
+    width: auto;
+    height: auto;
+    padding: 20px;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+    display: flex;
+    flex-direction: column;
+}
+
+.chart-modal-close {
+    position: absolute;
+    top: 8px;
+    right: 16px;
+    font-size: 2rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: var(--transition);
+    z-index: 10;
+    line-height: 1;
+}
+.chart-modal-close:hover {
+    color: var(--text-primary);
+    transform: scale(1.1);
+}
+
+.chart-modal-body {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+    min-width: 300px;
+    padding: 10px 0;
+}
+
+.chart-modal-body img {
+    max-width: 100%;
+    max-height: 80vh;
+    width: auto;
+    height: auto;
+    border-radius: var(--radius-sm);
+    background: var(--bg-primary);
+}
+
+/* Su mobile, il modal occupa tutto lo schermo */
+@media (max-width: 600px) {
+    .chart-modal {
+        padding: 10px;
+    }
+    .chart-modal-content {
+        padding: 12px;
+        max-width: 100vw;
+        max-height: 100vh;
+        border-radius: var(--radius-md);
+    }
+    .chart-modal-body {
+        min-height: 200px;
+        min-width: 200px;
+    }
+    .chart-modal-body img {
+        max-height: 85vh;
+    }
+    .chart-modal-close {
+        font-size: 1.6rem;
+        top: 4px;
+        right: 12px;
+    }
+}
+
+/* Cursore pointer sui box dei grafici */
+.chart-box {
+    cursor: pointer;
+    transition: var(--transition);
+}
+.chart-box:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+    transform: translateY(-2px);
+}
+#chart-modal-canvas {
+    width: 100% !important;
+    height: auto !important;
+    max-height: 75vh;
+    max-width: 100%;
+}
+/* ============================================================
+   GIOCATORI – CARD STILE FIFA
+   ============================================================ */
+.players-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.player-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    border: 1px solid var(--border-glass);
+    box-shadow: var(--shadow-card);
+    transition: var(--transition);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    cursor: default;
+}
+.player-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(255,255,255,0.15);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+}
+
+/* Badge overall in alto a destra */
+.player-card .card-ovr-badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: var(--accent-yellow);
+    color: #000;
+    font-weight: 700;
+    font-size: 1rem;
+    padding: 4px 10px;
+    border-radius: 99px;
+    box-shadow: 0 0 20px rgba(234,179,8,0.3);
+}
+
+/* Avatar grande */
+.player-card .card-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 8px auto 12px;
+    border: 3px solid rgba(255,255,255,0.15);
+    flex-shrink: 0;
+}
+
+/* Nome */
+.player-card .card-name {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--text-primary);
+}
+
+/* Posizione (calcolata in base alle stats) */
+.player-card .card-position {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    background: rgba(255,255,255,0.06);
+    padding: 2px 12px;
+    border-radius: 99px;
+    display: inline-block;
+    margin-bottom: 12px;
+}
+
+/* Statistiche */
+.player-card .stats-grid {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 12px;
+    margin-top: 6px;
+}
+.player-card .stat-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+}
+.player-card .stat-item .stat-label {
+    width: 45px;
+    text-align: left;
+    font-weight: 500;
+}
+.player-card .stat-item .stat-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--bg-secondary);
+    border-radius: 99px;
+    overflow: hidden;
+}
+.player-card .stat-item .stat-bar .stat-fill {
+    height: 100%;
+    border-radius: 99px;
+    background: var(--accent-green);
+    transition: width 0.3s;
+}
+.player-card .stat-item .stat-value {
+    min-width: 20px;
+    text-align: right;
+    font-weight: 600;
+    font-size: 0.7rem;
+    color: var(--text-primary);
+}
+
+/* Azioni */
+.player-card .card-actions {
+    margin-top: 14px;
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    justify-content: center;
+}
+.player-card .card-actions .btn {
+    flex: 1;
+    min-height: 34px;
+    font-size: 0.7rem;
+    padding: 4px 8px;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    .players-grid {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 12px;
+    }
+    .player-card .card-avatar {
+        width: 60px;
+        height: 60px;
+        font-size: 1.4rem;
+    }
+    .player-card .card-name {
+        font-size: 0.9rem;
+    }
+    .player-card .stats-grid {
+        grid-template-columns: 1fr;
+        gap: 2px;
+    }
+    .player-card .stat-item {
+        font-size: 0.65rem;
+    }
+}
