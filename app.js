@@ -478,9 +478,9 @@ function escapeHtml(str) {
 }
 
 // ---- TAB NAV ----
-document.querySelectorAll(".tab-btn").forEach(btn => {
+document.querySelectorAll("#tabs .tab-btn").forEach(btn => {
     btn.addEventListener("click", () => {
-        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll("#tabs .tab-btn").forEach(b => b.classList.remove("active"));
         document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
         btn.classList.add("active");
         document.getElementById(btn.dataset.tab).classList.add("active");
@@ -1091,10 +1091,22 @@ function calcolaStatistiche(filtroTipo = null) {
 }
 
 function renderClassifica() {
+    const tableWrap = document.getElementById('classifica-table-wrap');
+    const chartWrap = document.getElementById('classifica-chart-wrap');
+    
     if (classificaViewMode === 'grafico') {
-        renderClassificaChart();
+        tableWrap.style.display = 'none';
+        chartWrap.style.display = 'block';
+        setTimeout(() => {
+            renderClassificaChart();
+        }, 100);
         return;
     }
+    
+    // Modalità tabella
+    tableWrap.style.display = '';
+    chartWrap.style.display = 'none';
+    
     const filtro = document.getElementById('filtro-tipo').value;
     const stats = calcolaStatistiche(filtro);
 
@@ -1152,17 +1164,22 @@ document.querySelectorAll('#classifica-view-toggle .tab-btn').forEach(btn => {
         if (classificaViewMode === 'grafico') {
             tableWrap.style.display = 'none';
             chartWrap.style.display = 'block';
+            // Aspetta il prossimo frame per assicurarsi che il layout sia aggiornato
+            requestAnimationFrame(() => {
+                renderClassificaChart();
+            });
         } else {
             tableWrap.style.display = '';
             chartWrap.style.display = 'none';
+            renderClassifica();
         }
-        renderClassifica();
     });
 });
 
 function renderClassificaChart() {
     const canvas = document.getElementById('chart-classifica');
     if (!canvas) return;
+    
     const filtro = document.getElementById('filtro-tipo').value;
     const stats = calcolaStatistiche(filtro);
 
@@ -1177,7 +1194,14 @@ function renderClassificaChart() {
     });
 
     const container = canvas.parentElement;
-    const w = container.clientWidth || 400;
+    
+    // FORZA IL RIDIMENSIONAMENTO: aspetta che il container sia visibile
+    let w = container.clientWidth;
+    if (w === 0) {
+        // Se il container è invisibile, imposta una larghezza di default
+        w = Math.min(container.parentElement.clientWidth || 400, 800);
+    }
+    
     canvas.width = w;
     canvas.height = 300;
     canvas.style.width = w + 'px';
@@ -1251,6 +1275,13 @@ function renderClassificaChart() {
             }
         }
     });
+    
+    // Forza il resize dopo la creazione
+    setTimeout(() => {
+        if (charts.classifica) {
+            charts.classifica.resize();
+        }
+    }, 50);
 }
 
 // ---- STATS ROW ----
@@ -1303,111 +1334,139 @@ function apriModalGiocatore(id) {
         <div class="stat-item"><span class="stat-label">Clean sheet</span><span class="stat-value">${stats.cleanSheets || 0}</span></div>
     `;
 
-    if (modalChart) { modalChart.destroy(); modalChart = null; }
-    const ctx = document.getElementById('modal-player-chart');
-    if (ctx) {
-        const partiteGiocate = matches.filter(m => m.teamA.includes(id) || m.teamB.includes(id))
-            .sort((a, b) => new Date(a.date) - new Date(b.date));
-        if (partiteGiocate.length > 0) {
-            const labels = partiteGiocate.map(m => formatDataBreve(m.date));
-            const puntiCumulativi = [];
-            const puntiPartita = [];
-            const coloriEsito = [];
-            const esiti = [];
-            let cum = 0;
-            partiteGiocate.forEach(m => {
-                const inA = m.teamA.includes(id);
-                const inB = m.teamB.includes(id);
-                const vincitoreA = m.scoreA > m.scoreB;
-                const vincitoreB = m.scoreB > m.scoreA;
-                let puntiMatch = 0;
-                let esito = 'P';
-                if (inA || inB) {
-                    puntiMatch += 1;
-                    if ((inA && vincitoreA) || (inB && vincitoreB)) { puntiMatch += 3; esito = 'V'; }
-                    else if (m.scoreA === m.scoreB) { esito = 'P'; }
-                    else { esito = 'S'; }
-                }
-                cum += puntiMatch;
-                puntiCumulativi.push(cum);
-                puntiPartita.push(puntiMatch);
-                esiti.push(esito);
-                coloriEsito.push(esito === 'V' ? '#22c55e' : esito === 'S' ? '#ef4444' : '#94a3b8');
-            });
+    // Mostra il modal PRIMA di creare il grafico
+    modal.classList.add('active');
 
-            const ultimeCinque = esiti.slice(-5);
-            const wrap = document.getElementById('modal-player-chart').closest('div');
-            let formaBar = document.getElementById('modal-player-forma');
-            if (!formaBar) {
-                formaBar = document.createElement('div');
-                formaBar.id = 'modal-player-forma';
-                formaBar.style.cssText = 'display:flex; gap:6px; margin-bottom:10px;';
-                wrap.insertBefore(formaBar, document.getElementById('modal-player-chart'));
-            }
-            formaBar.innerHTML = ultimeCinque.map(e => {
-                const bg = e === 'V' ? '#22c55e' : e === 'S' ? '#ef4444' : '#94a3b8';
-                return `<span style="width:22px; height:22px; border-radius:50%; background:${bg}; color:#fff; font-size:0.65rem; font-weight:700; display:flex; align-items:center; justify-content:center;">${e}</span>`;
-            }).join('');
-
-            modalChart = new Chart(ctx, {
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            type: 'bar',
-                            label: 'Punti partita',
-                            data: puntiPartita,
-                            backgroundColor: coloriEsito,
-                            borderRadius: 3,
-                            yAxisID: 'y'
-                        },
-                        {
-                            type: 'line',
-                            label: 'Punti cumulativi',
-                            data: puntiCumulativi,
-                            borderColor: getPlayerColor(id),
-                            backgroundColor: getPlayerColor(id) + '33',
-                            fill: true,
-                            tension: 0.3,
-                            pointRadius: 3,
-                            yAxisID: 'y1'
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            labels: { color: '#94a3b8', font: { size: 9 } }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            ticks: { color: '#64748b', font: { size: 8 } },
-                            grid: { color: 'rgba(255,255,255,0.04)' }
-                        },
-                        y: {
-                            position: 'left',
-                            ticks: { color: '#64748b', font: { size: 8 } },
-                            grid: { color: 'rgba(255,255,255,0.04)' },
-                            beginAtZero: true,
-                            title: { display: true, text: 'Punti partita', color: '#64748b' }
-                        },
-                        y1: {
-                            position: 'right',
-                            ticks: { color: getPlayerColor(id), font: { size: 8 } },
-                            grid: { drawOnChartArea: false },
-                            beginAtZero: true,
-                            title: { display: true, text: 'Cumulativi', color: getPlayerColor(id) }
-                        }
-                    }
-                }
-            });
-        }
+    // Distruggi il grafico precedente se esiste
+    if (modalChart) {
+        modalChart.destroy();
+        modalChart = null;
     }
 
-    modal.classList.add('active');
+    // Crea il grafico DOPO che il modal è visibile (con un ritardo)
+    const canvas = document.getElementById('modal-player-chart');
+    if (!canvas) return;
+
+    // Prepara i dati
+    const partiteGiocate = matches.filter(m => m.teamA.includes(id) || m.teamB.includes(id))
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+    if (partiteGiocate.length === 0) {
+        return;
+    }
+
+    // Dopo che il modal è visibile, imposta le dimensioni e crea il chart
+    setTimeout(() => {
+        // Forza le dimensioni del canvas in base al contenitore
+        const parentWidth = canvas.parentElement.clientWidth || 400;
+        canvas.style.width = '100%';
+        canvas.style.height = '220px';
+        canvas.width = parentWidth;
+        canvas.height = 220;
+
+        const labels = partiteGiocate.map(m => formatDataBreve(m.date));
+        const puntiCumulativi = [];
+        const puntiPartita = [];
+        const coloriEsito = [];
+        const esiti = [];
+        let cum = 0;
+        partiteGiocate.forEach(m => {
+            const inA = m.teamA.includes(id);
+            const inB = m.teamB.includes(id);
+            const vincitoreA = m.scoreA > m.scoreB;
+            const vincitoreB = m.scoreB > m.scoreA;
+            let puntiMatch = 0;
+            let esito = 'P';
+            if (inA || inB) {
+                puntiMatch += 1;
+                if ((inA && vincitoreA) || (inB && vincitoreB)) { puntiMatch += 3; esito = 'V'; }
+                else if (m.scoreA === m.scoreB) { esito = 'P'; }
+                else { esito = 'S'; }
+            }
+            cum += puntiMatch;
+            puntiCumulativi.push(cum);
+            puntiPartita.push(puntiMatch);
+            esiti.push(esito);
+            coloriEsito.push(esito === 'V' ? '#22c55e' : esito === 'S' ? '#ef4444' : '#94a3b8');
+        });
+
+        const ultimeCinque = esiti.slice(-5);
+        const wrap = document.getElementById('modal-player-chart').closest('div');
+        let formaBar = document.getElementById('modal-player-forma');
+        if (!formaBar) {
+            formaBar = document.createElement('div');
+            formaBar.id = 'modal-player-forma';
+            formaBar.style.cssText = 'display:flex; gap:6px; margin-bottom:10px;';
+            wrap.insertBefore(formaBar, document.getElementById('modal-player-chart'));
+        }
+        formaBar.innerHTML = ultimeCinque.map(e => {
+            const bg = e === 'V' ? '#22c55e' : e === 'S' ? '#ef4444' : '#94a3b8';
+            return `<span style="width:22px; height:22px; border-radius:50%; background:${bg}; color:#fff; font-size:0.65rem; font-weight:700; display:flex; align-items:center; justify-content:center;">${e}</span>`;
+        }).join('');
+
+        // Crea il grafico
+        modalChart = new Chart(canvas, {
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        type: 'bar',
+                        label: 'Punti partita',
+                        data: puntiPartita,
+                        backgroundColor: coloriEsito,
+                        borderRadius: 3,
+                        yAxisID: 'y'
+                    },
+                    {
+                        type: 'line',
+                        label: 'Punti cumulativi',
+                        data: puntiCumulativi,
+                        borderColor: getPlayerColor(id),
+                        backgroundColor: getPlayerColor(id) + '33',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 3,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: '#94a3b8', font: { size: 9 } }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#64748b', font: { size: 8 } },
+                        grid: { color: 'rgba(255,255,255,0.04)' }
+                    },
+                    y: {
+                        position: 'left',
+                        ticks: { color: '#64748b', font: { size: 8 } },
+                        grid: { color: 'rgba(255,255,255,0.04)' },
+                        beginAtZero: true,
+                        title: { display: true, text: 'Punti partita', color: '#64748b' }
+                    },
+                    y1: {
+                        position: 'right',
+                        ticks: { color: getPlayerColor(id), font: { size: 8 } },
+                        grid: { drawOnChartArea: false },
+                        beginAtZero: true,
+                        title: { display: true, text: 'Cumulativi', color: getPlayerColor(id) }
+                    }
+                }
+            }
+        });
+
+        // Forza il resize dopo la creazione
+        setTimeout(() => {
+            if (modalChart) {
+                modalChart.resize();
+            }
+        }, 50);
+    }, 50);
 }
 
 document.querySelector('.modal-close').addEventListener('click', () => {
