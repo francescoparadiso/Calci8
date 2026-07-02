@@ -5,6 +5,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Calci8 ⚽</title>
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#0f1115" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
     <link rel="stylesheet" href="style.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
@@ -53,6 +56,10 @@
                         <option value="calcio8">Calcio a 8</option>
                     </select>
                 </div>
+                <div class="classifica-view-toggle" id="classifica-view-toggle">
+                    <button type="button" class="tab-btn active" data-view="tabella">📋 Tabella</button>
+                    <button type="button" class="tab-btn" data-view="grafico">📊 Grafico</button>
+                </div>
             </div>
             <div class="stats-grid" id="stats-grid">
                 <div class="stat-card">
@@ -72,7 +79,7 @@
                     <div class="stat-label">Capocannoniere</div>
                 </div>
             </div>
-            <div class="table-wrap">
+            <div class="table-wrap" id="classifica-table-wrap">
                 <table id="tabella-classifica">
                     <thead>
                         <tr>
@@ -89,6 +96,9 @@
                     </thead>
                     <tbody></tbody>
                 </table>
+            </div>
+            <div class="chart-box" id="classifica-chart-wrap" style="display:none;">
+                <canvas id="chart-classifica"></canvas>
             </div>
         </section>
 
@@ -309,7 +319,8 @@
             <h2 id="modal-player-name"></h2>
             <div id="modal-player-stats"></div>
             <div style="margin-top:16px;">
-                <canvas id="modal-player-chart" height="150"></canvas>
+                <h3 style="font-size:0.85rem; font-weight:600; margin-bottom:8px;">📈 Andamento Punti</h3>
+                <canvas id="modal-player-chart" height="220"></canvas>
             </div>
         </div>
     </div>
