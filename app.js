@@ -1123,14 +1123,26 @@ function renderClassifica() {
     const tbody = document.querySelector("#tabella-classifica tbody");
     tbody.innerHTML = "";
     if (stats.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="empty-msg">Nessun dato disponibile.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="empty-msg">Nessun dato disponibile.</td></tr>`;
         return;
     }
+    
     stats.forEach((s, i) => {
         const tr = document.createElement("tr");
         const posClass = i === 0 ? "pos-1" : i === 1 ? "pos-2" : i === 2 ? "pos-3" : "";
         const color = getPlayerColor(s.id);
         const initials = getInitials(s.name);
+
+        // ---- CALCOLA LA FORMA (ultime 5 partite) ----
+        const forma = calcolaFormaGiocatore(s.id, filtro);
+        const formaHtml = forma.length > 0
+            ? forma.map(e => {
+                const bg = e === 'V' ? '#22c55e' : e === 'S' ? '#ef4444' : '#94a3b8';
+                const label = e === 'V' ? 'Vittoria' : e === 'S' ? 'Sconfitta' : 'Pareggio';
+                return `<span style="display:inline-block; width:20px; height:20px; border-radius:50%; background:${bg}; color:#fff; font-size:0.6rem; font-weight:700; text-align:center; line-height:20px; margin:0 2px; box-shadow:0 1px 3px rgba(0,0,0,0.3);" title="${label}">${e}</span>`;
+            }).join('')
+            : `<span style="color:var(--text-muted); font-size:0.65rem;">—</span>`;
+
         tr.innerHTML = `
           <td class="${posClass}">${i + 1}</td>
           <td class="nome-cell" data-player-id="${s.id}" style="cursor:pointer;">
@@ -1138,9 +1150,13 @@ function renderClassifica() {
             ${escapeHtml(s.name)}
           </td>
           <td><span class="badge-ovr">${s.overall}</span></td>
-          <td>${s.pg}</td><td>${s.v}</td><td>${s.p}</td><td>${s.s}</td>
+          <td>${s.pg}</td>
+          <td>${s.v}</td>
+          <td>${s.p}</td>
+          <td>${s.s}</td>
           <td>${s.gol}</td>
-          <td><strong>${s.punti}</strong></td>
+          <td class="col-punti"><strong>${s.punti}</strong></td>   <!-- EVIDENZIATA -->
+          <td>${formaHtml}</td>   <!-- FORMA DOPO PUNTI -->
         `;
         tbody.appendChild(tr);
     });
@@ -1151,6 +1167,11 @@ function renderClassifica() {
             apriModalGiocatore(id);
         });
     });
+
+    // Aggiorna il grafico dell'andamento in dashboard (se presente)
+    if (typeof renderAndamentoDashboard === 'function') {
+        renderAndamentoDashboard();
+    }
 }
 
 // ---- TOGGLE VISTA CLASSIFICA (Tabella / Grafico) ----
@@ -1175,7 +1196,30 @@ document.querySelectorAll('#classifica-view-toggle .tab-btn').forEach(btn => {
         }
     });
 });
+function calcolaFormaGiocatore(playerId, filtroTipo = null) {
+    const partiteFiltrate = filtroTipo && filtroTipo !== 'all'
+        ? matches.filter(m => m.type === filtroTipo)
+        : matches;
 
+    const partiteGiocatore = partiteFiltrate
+        .filter(m => m.teamA.includes(playerId) || m.teamB.includes(playerId))
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        .slice(0, 5);
+
+    const esiti = partiteGiocatore.map(m => {
+        const inA = m.teamA.includes(playerId);
+        const vincitoreA = m.scoreA > m.scoreB;
+        const vincitoreB = m.scoreB > m.scoreA;
+        if ((inA && vincitoreA) || (!inA && vincitoreB)) return 'V';
+        if (m.scoreA === m.scoreB) return 'P';
+        return 'S';
+    });
+
+    // Inverti l'ordine per avere dalla partita più recente a sinistra?
+    // Di solito si mostrano dalla più recente a sinistra.
+    // Qui le abbiamo in ordine decrescente (più recente prima).
+    return esiti;
+}
 function renderClassificaChart() {
     const canvas = document.getElementById('chart-classifica');
     if (!canvas) return;
@@ -1316,6 +1360,7 @@ function apriModalGiocatore(id) {
     const badgesHtml = badges.length > 0
         ? `<div class="card-badges" style="margin-top:8px;">${badges.map(b => `<span class="player-badge" title="${b.label}">${b.icon} ${b.label}</span>`).join('')}</div>`
         : '';
+
     document.getElementById('modal-player-name').innerHTML = `
         <span class="player-avatar" style="background:${getPlayerColor(id)};">${getInitials(p.name)}</span>
         ${escapeHtml(p.name)}
@@ -1334,41 +1379,38 @@ function apriModalGiocatore(id) {
         <div class="stat-item"><span class="stat-label">Clean sheet</span><span class="stat-value">${stats.cleanSheets || 0}</span></div>
     `;
 
-    // Mostra il modal PRIMA di creare il grafico
+    // MOSTRA IL MODAL
     modal.classList.add('active');
 
-    // Distruggi il grafico precedente se esiste
+    // DISTRUGGI IL GRAFICO PRECEDENTE
     if (modalChart) {
         modalChart.destroy();
         modalChart = null;
     }
 
-    // Crea il grafico DOPO che il modal è visibile (con un ritardo)
     const canvas = document.getElementById('modal-player-chart');
     if (!canvas) return;
 
-    // Prepara i dati
+    // PREPARA I DATI
     const partiteGiocate = matches.filter(m => m.teamA.includes(id) || m.teamB.includes(id))
         .sort((a, b) => new Date(a.date) - new Date(b.date));
-    if (partiteGiocate.length === 0) {
-        return;
-    }
+    if (partiteGiocate.length === 0) return;
 
-    // Dopo che il modal è visibile, imposta le dimensioni e crea il chart
+    // DIMENSIONA IL CANVAS DOPO CHE IL MODAL È VISIBILE
     setTimeout(() => {
-        // Forza le dimensioni del canvas in base al contenitore
-        const parentWidth = canvas.parentElement.clientWidth || 400;
-        canvas.style.width = '100%';
-        canvas.style.height = '220px';
-        canvas.width = parentWidth;
+        const parent = canvas.parentElement;
+        const containerWidth = parent.clientWidth || 400;
+
+        canvas.width = containerWidth;
         canvas.height = 220;
+        canvas.style.width = containerWidth + 'px';
+        canvas.style.height = '220px';
 
         const labels = partiteGiocate.map(m => formatDataBreve(m.date));
         const puntiCumulativi = [];
-        const puntiPartita = [];
-        const coloriEsito = [];
         const esiti = [];
         let cum = 0;
+
         partiteGiocate.forEach(m => {
             const inA = m.teamA.includes(id);
             const inB = m.teamB.includes(id);
@@ -1378,17 +1420,21 @@ function apriModalGiocatore(id) {
             let esito = 'P';
             if (inA || inB) {
                 puntiMatch += 1;
-                if ((inA && vincitoreA) || (inB && vincitoreB)) { puntiMatch += 3; esito = 'V'; }
-                else if (m.scoreA === m.scoreB) { esito = 'P'; }
-                else { esito = 'S'; }
+                if ((inA && vincitoreA) || (inB && vincitoreB)) {
+                    puntiMatch += 3;
+                    esito = 'V';
+                } else if (m.scoreA === m.scoreB) {
+                    esito = 'P';
+                } else {
+                    esito = 'S';
+                }
             }
             cum += puntiMatch;
             puntiCumulativi.push(cum);
-            puntiPartita.push(puntiMatch);
             esiti.push(esito);
-            coloriEsito.push(esito === 'V' ? '#22c55e' : esito === 'S' ? '#ef4444' : '#94a3b8');
         });
 
+        // FORMA (ultime 5 partite) – manteniamo i pallini
         const ultimeCinque = esiti.slice(-5);
         const wrap = document.getElementById('modal-player-chart').closest('div');
         let formaBar = document.getElementById('modal-player-forma');
@@ -1403,31 +1449,23 @@ function apriModalGiocatore(id) {
             return `<span style="width:22px; height:22px; border-radius:50%; background:${bg}; color:#fff; font-size:0.65rem; font-weight:700; display:flex; align-items:center; justify-content:center;">${e}</span>`;
         }).join('');
 
-        // Crea il grafico
+        // CREA IL GRAFICO – SOLO PUNTI CUMULATIVI
         modalChart = new Chart(canvas, {
+            type: 'line',
             data: {
                 labels: labels,
-                datasets: [
-                    {
-                        type: 'bar',
-                        label: 'Punti partita',
-                        data: puntiPartita,
-                        backgroundColor: coloriEsito,
-                        borderRadius: 3,
-                        yAxisID: 'y'
-                    },
-                    {
-                        type: 'line',
-                        label: 'Punti cumulativi',
-                        data: puntiCumulativi,
-                        borderColor: getPlayerColor(id),
-                        backgroundColor: getPlayerColor(id) + '33',
-                        fill: true,
-                        tension: 0.3,
-                        pointRadius: 3,
-                        yAxisID: 'y1'
-                    }
-                ]
+                datasets: [{
+                    label: 'Punti cumulativi',
+                    data: puntiCumulativi,
+                    borderColor: 'rgb(198, 133, 28)',
+                    backgroundColor: 'rgba(246, 59, 59, 0.2)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 3,
+                    pointBackgroundColor: getPlayerColor(id),
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 1
+                }]
             },
             options: {
                 responsive: true,
@@ -1443,30 +1481,25 @@ function apriModalGiocatore(id) {
                         grid: { color: 'rgba(255,255,255,0.04)' }
                     },
                     y: {
-                        position: 'left',
                         ticks: { color: '#64748b', font: { size: 8 } },
                         grid: { color: 'rgba(255,255,255,0.04)' },
                         beginAtZero: true,
-                        title: { display: true, text: 'Punti partita', color: '#64748b' }
-                    },
-                    y1: {
-                        position: 'right',
-                        ticks: { color: getPlayerColor(id), font: { size: 8 } },
-                        grid: { drawOnChartArea: false },
-                        beginAtZero: true,
-                        title: { display: true, text: 'Cumulativi', color: getPlayerColor(id) }
+                        title: {
+                            display: true,
+                            text: 'Punti totali',
+                            color: '#64748b'
+                        }
                     }
                 }
             }
         });
 
-        // Forza il resize dopo la creazione
+        // FORZA IL RESIZE
         setTimeout(() => {
-            if (modalChart) {
-                modalChart.resize();
-            }
-        }, 50);
-    }, 50);
+            if (modalChart) modalChart.resize();
+        }, 100);
+
+    }, 100);
 }
 
 document.querySelector('.modal-close').addEventListener('click', () => {

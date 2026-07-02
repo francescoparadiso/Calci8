@@ -1248,7 +1248,22 @@ th[data-sort].sorted-desc::after {
     color: var(--accent-yellow);
     border-color: rgba(234, 179, 8, 0.2);
 }
+/* Evidenzia la colonna Punti */
+th.col-punti,
+td.col-punti {
+    background: rgba(197, 162, 34, 0.08);
+    border-left: 1px solid rgba(184, 197, 34, 0.15);
+    border-right: 1px solid rgba(186, 197, 34, 0.15);
+    font-weight: 700;
+}
 
+th.col-punti {
+    background: rgba(197, 165, 34, 0.15);
+}
+
+td.col-punti {
+    font-size: 1.05rem;
+}
 /* Mobile */
 @media (max-width: 600px) {
     .modal-content {
