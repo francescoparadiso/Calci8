@@ -506,25 +506,25 @@ document.getElementById("form-giocatore").addEventListener("submit", async (e) =
     const shooting = parseInt(document.getElementById("g-shooting").value, 10) || 50;
     const control = parseInt(document.getElementById("g-control").value, 10) || 50;
     const editId = document.getElementById("edit-player-id").value;
-
+    const photoUrl = document.getElementById('g-photo-url').value.trim() || null;
     if (!nome) return;
 
-    if (editId) {
-        // MODIFICA
-        const idx = players.findIndex(p => p.id === editId);
-        if (idx !== -1) {
-            players[idx] = {
-                ...players[idx],
-                name: nome,
-                overall,
-                attack, defense, pace, stamina, shooting, control
-            };
-            await savePlayers();
-            showToast('✅ Giocatore aggiornato!', 'success');
-            document.getElementById('edit-player-id').value = '';
-            document.querySelector('#form-giocatore .btn').textContent = '➕ Aggiungi / Aggiorna';
-        }
-    } else {
+if (editId) {
+    const idx = players.findIndex(p => p.id === editId);
+    if (idx !== -1) {
+        players[idx] = {
+            ...players[idx],
+            name: nome,
+            overall,
+            attack, defense, pace, stamina, shooting, control,
+            photo_url: photoUrl  // <-- AGGIUNGI QUESTA RIGA
+        };
+        await savePlayers();
+        showToast('✅ Giocatore aggiornato!', 'success');
+        document.getElementById('edit-player-id').value = '';
+        document.querySelector('#form-giocatore .btn').textContent = '➕ Aggiungi / Aggiorna';
+    }
+} else {
         // AGGIUNTA
         const esistente = players.find(p => p.name.toLowerCase() === nome.toLowerCase());
         if (esistente) {
@@ -543,7 +543,8 @@ document.getElementById("form-giocatore").addEventListener("submit", async (e) =
                 id: uid(),
                 name: nome,
                 overall,
-                attack, defense, pace, stamina, shooting, control
+                attack, defense, pace, stamina, shooting, control,
+                photo_url: photoUrl  // <-- AGGIUNTO
             });
             await savePlayers();
             showToast(`Giocatore ${nome} aggiunto!`, 'success');
@@ -579,46 +580,49 @@ function renderGiocatoriGrid() {
         card.className = 'player-card';
         card.dataset.id = p.id;
 
-        // Colore dell'avatar (basato sull'ID)
-        const color = getPlayerColor(p.id);
+        // SFONDO IMMAGINE
+        if (p.photo_url) {
+            card.style.backgroundImage = `url("${p.photo_url}")`;
+        } else {
+            // Colore di fallback se non c'è foto
+            const color = getPlayerColor(p.id);
+            card.style.background = `linear-gradient(135deg, ${color}33, ${color}cc)`;
+        }
 
-        // Calcola una posizione approssimativa in base alle stats
         const pos = calcolaPosizione(p);
 
-        // Build HTML
         card.innerHTML = `
             <div class="card-ovr-badge">${p.overall}</div>
-            <div class="card-avatar" style="background:${color};">${getInitials(p.name)}</div>
             <div class="card-name">${escapeHtml(p.name)}</div>
             <div class="card-position">${pos}</div>
             <div class="stats-grid">
                 <div class="stat-item">
-                    <span class="stat-label">Attacco</span>
+                    <span class="stat-label">ATT</span>
                     <div class="stat-bar"><div class="stat-fill" style="width:${p.attack}%; background:#ef4444;"></div></div>
                     <span class="stat-value">${p.attack}</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Difesa</span>
+                    <span class="stat-label">DIF</span>
                     <div class="stat-bar"><div class="stat-fill" style="width:${p.defense}%; background:#3b82f6;"></div></div>
                     <span class="stat-value">${p.defense}</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Velocità</span>
+                    <span class="stat-label">VEL</span>
                     <div class="stat-bar"><div class="stat-fill" style="width:${p.pace}%; background:#22c55e;"></div></div>
                     <span class="stat-value">${p.pace}</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Resistenza</span>
+                    <span class="stat-label">RES</span>
                     <div class="stat-bar"><div class="stat-fill" style="width:${p.stamina}%; background:#eab308;"></div></div>
                     <span class="stat-value">${p.stamina}</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Tiro</span>
+                    <span class="stat-label">TIRO</span>
                     <div class="stat-bar"><div class="stat-fill" style="width:${p.shooting}%; background:#f97316;"></div></div>
                     <span class="stat-value">${p.shooting}</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Controllo</span>
+                    <span class="stat-label">CONT</span>
                     <div class="stat-bar"><div class="stat-fill" style="width:${p.control}%; background:#8b5cf6;"></div></div>
                     <span class="stat-value">${p.control}</span>
                 </div>
@@ -631,7 +635,6 @@ function renderGiocatoriGrid() {
         grid.appendChild(card);
     });
 
-    // Attacca gli event listener per i pulsanti "Modifica"
     document.querySelectorAll('.btn-edit-card').forEach(btn => {
         btn.addEventListener('click', function () {
             const id = this.dataset.id;
@@ -667,6 +670,16 @@ function apriModaleModificaGiocatore(id) {
 
     // Scroll fino al form
     document.getElementById('form-giocatore').scrollIntoView({ behavior: 'smooth' });
+    // Dopo aver popolato nome, overall, stats...
+    document.getElementById('g-photo-url').value = p.photo_url || '';
+    const previewDiv = document.getElementById('photo-preview');
+    const previewImg = document.getElementById('photo-preview-img');
+    if (p.photo_url) {
+        previewImg.src = p.photo_url;
+        previewDiv.style.display = 'flex';
+    } else {
+        previewDiv.style.display = 'none';
+    }
 }
 window.eliminaGiocatore = async function (id) {
     if (!confirm("Eliminare questo giocatore? Le partite rimarranno invariate.")) return;
@@ -1763,7 +1776,29 @@ function setupChartModal() {
     });
     observer.observe(modal, { attributes: true, attributeFilter: ['class'] });
 }
+// ---- ANTEPRIMA FOTO DA URL ----
+document.getElementById('g-photo-url').addEventListener('input', function () {
+    const url = this.value.trim();
+    const previewDiv = document.getElementById('photo-preview');
+    const previewImg = document.getElementById('photo-preview-img');
+    if (url) {
+        previewImg.src = url;
+        previewDiv.style.display = 'flex';
+        previewImg.onerror = function () {
+            // Se l'immagine non si carica, nasconde l'anteprima
+            previewDiv.style.display = 'none';
+        };
+    } else {
+        previewDiv.style.display = 'none';
+        previewImg.src = '';
+    }
+});
 
+document.getElementById('btn-remove-photo').addEventListener('click', function () {
+    document.getElementById('g-photo-url').value = '';
+    document.getElementById('photo-preview').style.display = 'none';
+    document.getElementById('photo-preview-img').src = '';
+});
 // ---- INIZIALIZZAZIONE APP ----
 async function initApp() {
     try {
@@ -1779,7 +1814,7 @@ async function initApp() {
         document.getElementById("p-data").valueAsDate = new Date();
 
         renderClassifica();
-        renderGiocatoriGrid();     
+        renderGiocatoriGrid();
         aggiornaStats();
         renderListaPartite();
         if (players.length > 0) {
