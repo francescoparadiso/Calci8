@@ -1724,9 +1724,18 @@ th[data-sort].sorted-desc::after {
     height: 300px !important;
 }
 
-.modal-content canvas {
-    max-width: 100% !important;
-    height: auto !important;
+/* Contenitore del canvas nel modale del giocatore */
+#modal-player-chart-container {
+    width: 100%;
+    height: 220px;
+    position: relative;
+}
+
+#modal-player-chart {
+    width: 100% !important;
+    height: 220px !important;
+    max-width: 100%;
+    display: block;
 }
 
 /* Responsive */
